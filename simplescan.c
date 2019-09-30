@@ -7,40 +7,61 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
-int main(int argc, char **argv)
-{
-    inquiry_info *ii = NULL;
-    int max_rsp, num_rsp;
-    int dev_id, sock, len, flags;
-    int i;
-    char addr[19] = { 0 };
-    char name[248] = { 0 };
+int main() {
 
-    dev_id = hci_get_route(NULL);
-    sock = hci_open_dev( dev_id );
-    if (dev_id < 0 || sock < 0) {
+    int dev_id = hci_get_route(NULL);   // device id
+    int dd = hci_open_dev(dev_id);      // device description
+    if (dev_id < 0 || dd < 0) {
         perror("opening socket");
-        exit(1);
+        return -1;
     }
 
-    len  = 8;
-    max_rsp = 255;
-    flags = IREQ_CACHE_FLUSH;
-    ii = (inquiry_info*)malloc(max_rsp * sizeof(inquiry_info));
+    printf("Device Id          = %d\n", dev_id);
+    printf("Device Description = %d\n\n", dd);
 
-    num_rsp = hci_inquiry(dev_id, len, max_rsp, NULL, &ii, flags);
-    if( num_rsp < 0 ) perror("hci_inquiry");
 
-    for (i = 0; i < num_rsp; i++) {
-        ba2str(&(ii+i)->bdaddr, addr);
-        memset(name, 0, sizeof(name));
-        if (hci_read_remote_name(sock, &(ii+i)->bdaddr, sizeof(name),
-            name, 0) < 0)
-        strcpy(name, "[unknown]");
-        printf("%s  %s\n", addr, name);
+    // inquiry_info {
+    //     bdaddr_t	bdaddr;
+    //     uint8_t		pscan_rep_mode;
+    //     uint8_t		pscan_period_mode;
+    //     uint8_t		pscan_mode;
+    //     uint8_t		dev_class[3];
+    //     uint16_t	clock_offset;
+    // }
+    inquiry_info *ii = NULL; // must set NULL
+    int num_rsp = hci_inquiry(
+        dev_id,
+        8,                  // int len
+        255,                // int nrsp
+        NULL,               // const uint8_t *lap
+        &ii,
+        IREQ_CACHE_FLUSH    // long flags
+    );
+    if (num_rsp < 0) {
+        perror("hci_inquiry");
+        return -1;
     }
 
-    free( ii );
-    close( sock );
+
+    // show address and remote_name
+    for (int i = 0; i < num_rsp; i++) {
+        inquiry_info * info = ii + i;
+
+        // address
+        char addr[19] = {0};
+        ba2str(&info->bdaddr, addr);
+
+        // remote name
+        char name[248] = {0};
+        int ret = hci_read_remote_name(dd, &info->bdaddr, sizeof(name), name, 0);
+        if (ret != 0) {
+            strcpy(name, "[unknown]");
+        }
+
+        printf("%s - %s\n", addr, name);
+    }
+
+    free(ii);
+    hci_close_dev(dd);
     return 0;
 }
