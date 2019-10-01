@@ -1,4 +1,6 @@
 #!/bin/bash
+set -e
+
 # sudo apt install libbluetooth-dev
 
 # 1. clean
