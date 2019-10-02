@@ -1,36 +1,60 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <signal.h>
-#include <errno.h>
-#include <sys/select.h>
-#include <unistd.h>     // read
+#include <stdlib.h>         // exit
+#include <signal.h>         // signal
+#include <sys/select.h>     // select, FD_SET, FD_ZERO
+#include <unistd.h>         // read
 
 // bluez
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
-#define TIMEOUT 1000
-
-#define CHECK_RET                                                   \
-    if (ret != 0) {                                                 \
-        printf("%d: %s (%d)\n", __LINE__, strerror(errno), errno);  \
-        return -1;                                                  \
-    }                                                               \
-
 void exit_handler(int param) {
     printf("exit\n");
+    // TODO: reset hci_filter
     exit(1);
 }
 
+static int eir_parse_name(uint8_t *eir, size_t eir_len, char *output_name, size_t output_name_len) {
+	size_t index = 0;
+	while (index < eir_len) {
+        uint8_t * ptr = eir + index;
+
+		// check field len
+		uint8_t field_len = ptr[0];
+		if (field_len == 0 || index + field_len > eir_len) {
+			return -1;
+		}
+
+		// check EIR type (bluez/src/eir.h)
+        // EIR_NAME_SHORT    0x08
+        // EIR_NAME_COMPLETE 0x09
+		if (ptr[1] == 0x08 || ptr[1] == 0x09) {
+			size_t name_len = field_len - 1;
+			if (name_len > output_name_len) {
+				// output_name_len is too short
+				printf("The length of device name is %ld, but the output_name_len (%ld) is too short.\n", name_len, output_name_len);
+				return -1;
+			}
+
+            // copy value to output+name
+			memcpy(output_name, &ptr[2], name_len);
+			return 0;
+		}
+
+        // update index
+		index += field_len + 1;
+	}
+	return -1;
+}
 
 int main() {
-    int ret;    // tmp return value
-
-    // handles ctrl-c or other orderly exits
+    // TODO: handles ctrl-c or other orderly exits
     signal(SIGINT, exit_handler);
 
-    // create BLE device
+    int ret = 0;
+
+    // 1. create BLE device
     int dev_id = hci_get_route(NULL);
     int dd = hci_open_dev(dev_id);   // device description
     if (dev_id < 0 || dd < 0) {
@@ -38,125 +62,93 @@ int main() {
         return -1;
     }
 
-    printf("Device Id: %d\n", dev_id);
-    printf("Device Description: %d\n", dd);
+    printf("dev_id = %d\n", dev_id);
+    printf("device_description = %d\n", dd);
 
-
-    // struct hci_dev_info {
-    //     uint16_t dev_id;
-    //     char     name[8];
-
-    //     bdaddr_t bdaddr;
-
-    //     uint32_t flags;
-    //     uint8_t  type;
-
-    //     uint8_t  features[8];
-
-    //     uint32_t pkt_type;
-    //     uint32_t link_policy;
-    //     uint32_t link_mode;
-
-    //     uint16_t acl_mtu;
-    //     uint16_t acl_pkts;
-    //     uint16_t sco_mtu;
-    //     uint16_t sco_pkts;
-
-    //     struct   hci_dev_stats stat;
-    // };
-
-    // int hci_devinfo(int dev_id, struct hci_dev_info *di);
-
+    // device info
     struct hci_dev_info dev_info = { 0 };
     ret = hci_devinfo(dev_id, &dev_info);
     if (ret != 0) {
         perror("hci_devinfo failed");
         return -1;
     }
-
-    printf("dev_id = %d\n", dev_info.dev_id);
     printf("name = %s\n", dev_info.name);
 
-    // show address
+    // bluetooth device address
     char addr[18] = {0};
     ba2str(&(dev_info.bdaddr), addr);
     printf("addr = %s\n", addr);
 
-    // int hci_read_local_name(int dd, int len, char *name, int to);
+    // local_name
     char local_name[HCI_MAX_NAME_LENGTH] = { 0 };
     ret = hci_read_local_name(dd, HCI_MAX_NAME_LENGTH, local_name, 0);
     if (ret != 0) {
         perror("hci_read_local_name failed");
         return -1;
     }
-    printf("local_name = %s\n", local_name);
+    printf("local_name = %s\n\n", local_name);
 
-    // int hci_read_remote_name(int dd, const bdaddr_t *bdaddr, int len, char *name, int to)
-    // char remote_name[HCI_MAX_NAME_LENGTH] = { 0 };
-    // ret = hci_read_remote_name(dd, &(dev_info.bdaddr), sizeof(remote_name), remote_name, 1000);
-    // if (ret != 0) {
-    //     perror("hci_read_remote_name failed");
-    //     return -1;
-    // }
-    // printf("remote_name = %s\n", remote_name);
-    // return 0;
-
-    // save original filter
+    // 2. save original filter
     struct hci_filter original_filter;
     hci_filter_clear(&original_filter);
     socklen_t original_filter_len = sizeof(original_filter);
-    getsockopt(dd, SOL_HCI, HCI_FILTER, &original_filter, &original_filter_len);
+    ret = getsockopt(dd, SOL_HCI, HCI_FILTER, &original_filter, &original_filter_len);
+    if (ret < 0) {
+        perror("getsockopt failed");
+        return -1;
+    }
 
-    // setup new filter
+    // 3. setup new filter
     struct hci_filter new_filter;
     hci_filter_clear(&new_filter);
     hci_filter_set_ptype(HCI_EVENT_PKT, &new_filter);       // HCI_EVENT_PKT
     hci_filter_set_event(EVT_LE_META_EVENT, &new_filter);   // EVT_LE_META_EVENT
-    setsockopt(dd, SOL_HCI, HCI_FILTER, &new_filter, sizeof(new_filter));
-
-    // disable scanning just in case scanning was already happening,
-    // otherwise hci_le_set_scan_parameters call will fail
-
-    // 1. always disable scan
-    ret = hci_le_set_scan_enable(
-        dd,
-        0x00,       // disable: 0x00, enable: 0x01
-        0,          // no filter
-        TIMEOUT
-    );
-    if (ret != 0 && errno != EIO) {
-        perror("Disable BLE Scan");
+    ret = setsockopt(dd, SOL_HCI, HCI_FILTER, &new_filter, sizeof(new_filter));
+    if (ret < 0) {
+        perror("setsockopt failed");
         return -1;
     }
 
+    // 4. always disable scan before set params
+    ret = hci_le_set_scan_enable(
+        dd,
+        0x00,       // disable
+        0x00,       // no filter
+        10000       // timeout
+    );
+    if (ret != 0) {
+        perror("hci_le_set_scan_enable");
+        goto end;
+    }
 
-    // 2. set scan params
+    // 5. set scan params
     ret = hci_le_set_scan_parameters(
         dd,
-        0x00,               // type?
-        // 0x01,               // type?
+        0x01,               // type
         htobs(0x0010),      // interval
         htobs(0x0010),      // window
-        0x00,               // own_type
+        LE_PUBLIC_ADDRESS,  // own_type
         0x00,               // no filter
-        TIMEOUT
+        10000               // timeout
     );
-    CHECK_RET
+    if (ret != 0) {
+        perror("hci_le_set_scan_parameters");
+        goto end;
+    }
 
-    // 3. start scanning
+    // 6. start scanning
     ret = hci_le_set_scan_enable(
         dd,
         0x01,       // enable
-        0,          // no filter
-        TIMEOUT
+        0x00,       // no filter
+        10000       // timeout
     );
-    CHECK_RET
+    if (ret != 0) {
+        perror("hci_le_set_scan_enable");
+        goto end;
+    }
 
-    ///////////////////////////////////////////////////////////////////////////
-
-    printf("\nScanning ...\n");
-
-
+    // 7. use 'select' to recieve data from fd
     for (;;) {
         // set read file descriptions
         fd_set rfds;
@@ -179,7 +171,7 @@ int main() {
 
         if (ret == -1) {
             perror("select error");
-            return -1;
+            goto end;
         }
 
         if (ret == 0) {
@@ -191,62 +183,42 @@ int main() {
         unsigned char buf[HCI_MAX_EVENT_SIZE] = { 0 };
         int buff_size = read(dd, buf, sizeof(buf));
         if (buff_size == 0) {
-            printf("read: no data");
+            printf("read no data");
             continue;
         }
-        printf("buff_size = %d\n", buff_size);
-
 
         // get body ptr and body size
-        unsigned char *ptr = buf + (1 + HCI_EVENT_HDR_SIZE);    // +1 ?
-        buff_size -= (1 + HCI_EVENT_HDR_SIZE);                  // TODO: more buffer?
-
-        // EVT_LE_META_EVENT	    0x3E
-        // EVT_LE_META_EVENT_SIZE   1
-        // evt_le_meta_event {
-        //     uint8_t		subevent;
-        //     uint8_t		data[0];
-        // }
+        unsigned char *ptr = buf + (1 + HCI_EVENT_HDR_SIZE);
+        buff_size -= (1 + HCI_EVENT_HDR_SIZE);
 
         // parse to meta
         evt_le_meta_event *meta = (evt_le_meta_event *) ptr;
-        if (meta->subevent != EVT_LE_ADVERTISING_REPORT) {  // 0x02
-            printf("meta->subevent (%d) is not EVT_LE_ADVERTISING_REPORT (%d)\n",
+        if (meta->subevent != EVT_LE_ADVERTISING_REPORT) {
+            printf("meta->subevent (0x%02x) is not EVT_LE_ADVERTISING_REPORT (0x%02x)\n",
                 meta->subevent,
                 EVT_LE_ADVERTISING_REPORT
             );
             continue;
         }
 
-        // EVT_LE_ADVERTISING_REPORT	0x02
-        // LE_ADVERTISING_INFO_SIZE     9
-        // le_advertising_info {
-        //     uint8_t		evt_type;
-        //     uint8_t		bdaddr_type;
-        //     bdaddr_t	    bdaddr;
-        //     uint8_t		length;
-        //     uint8_t		data[0];
-        // }
-
         // parse ADV info
         le_advertising_info *info = (le_advertising_info *) (meta->data + 1);
 
         // show address
-        char addr[18];
+        char addr[18] = {0};
         ba2str(&(info->bdaddr), addr);
 
-        // remote name
-        char name[HCI_MAX_NAME_LENGTH] = {0};
-        ret = hci_read_remote_name(dd, &(info->bdaddr), sizeof(name), name, 1000);
-        // if (ret != 0) {
-        //     perror("read remote name failed");
-        // } else {
-        //     printf("%s - %s\n", addr, name);
-        //     break;  // debug
-        // }
-
-        printf("%s - %s\n", addr, name);
+        // name
+		char name[30] = {0};
+		ret = eir_parse_name(info->data, info->length, name, sizeof(name) - 1);
+        if (ret == 0) {
+            printf("%s - %s\n", addr, name);
+            // TODO: filter repeated addr
+        }
     }
 
-    return 0;
+    ret = 0;
+end:
+    setsockopt(dd, SOL_HCI, HCI_FILTER, &original_filter, original_filter_len);
+    return ret;
 }
