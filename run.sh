@@ -2,6 +2,7 @@
 set -e
 
 # sudo apt install libbluetooth-dev
+# https://stackoverflow.com/a/23059924
 
 # 1. clean
 echo -e "[x] Clean"
@@ -9,7 +10,7 @@ rm -rf *.exe
 
 # 2. select source
 if [ "${1}" == "" ]; then
-    src="main.c"
+    src="scan-ble.c"
 else
     src=${1}
 fi

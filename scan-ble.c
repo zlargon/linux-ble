@@ -16,36 +16,36 @@ void exit_handler(int param) {
 }
 
 static int eir_parse_name(uint8_t *eir, size_t eir_len, char *output_name, size_t output_name_len) {
-	size_t index = 0;
-	while (index < eir_len) {
+    size_t index = 0;
+    while (index < eir_len) {
         uint8_t * ptr = eir + index;
 
-		// check field len
-		uint8_t field_len = ptr[0];
-		if (field_len == 0 || index + field_len > eir_len) {
-			return -1;
-		}
+        // check field len
+        uint8_t field_len = ptr[0];
+        if (field_len == 0 || index + field_len > eir_len) {
+            return -1;
+        }
 
-		// check EIR type (bluez/src/eir.h)
+        // check EIR type (bluez/src/eir.h)
         // EIR_NAME_SHORT    0x08
         // EIR_NAME_COMPLETE 0x09
-		if (ptr[1] == 0x08 || ptr[1] == 0x09) {
-			size_t name_len = field_len - 1;
-			if (name_len > output_name_len) {
-				// output_name_len is too short
-				printf("The length of device name is %ld, but the output_name_len (%ld) is too short.\n", name_len, output_name_len);
-				return -1;
-			}
+        if (ptr[1] == 0x08 || ptr[1] == 0x09) {
+            size_t name_len = field_len - 1;
+            if (name_len > output_name_len) {
+                // output_name_len is too short
+                printf("The length of device name is %ld, but the output_name_len (%ld) is too short.\n", name_len, output_name_len);
+                return -1;
+            }
 
             // copy value to output+name
-			memcpy(output_name, &ptr[2], name_len);
-			return 0;
-		}
+            memcpy(output_name, &ptr[2], name_len);
+            return 0;
+        }
 
         // update index
-		index += field_len + 1;
-	}
-	return -1;
+        index += field_len + 1;
+    }
+    return -1;
 }
 
 int main() {
@@ -209,8 +209,8 @@ int main() {
         ba2str(&(info->bdaddr), addr);
 
         // name
-		char name[30] = {0};
-		ret = eir_parse_name(info->data, info->length, name, sizeof(name) - 1);
+        char name[30] = {0};
+        ret = eir_parse_name(info->data, info->length, name, sizeof(name) - 1);
         if (ret == 0) {
             printf("%s - %s\n", addr, name);
             // TODO: filter repeated addr
