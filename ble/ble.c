@@ -166,7 +166,7 @@ int ble_scan(BLEInfo **ble_info_list, size_t ble_info_list_len, int scan_time) {
         counter++;
 
         // debug: show the address and name
-        printf("%s - %s\n", info.address, info.name);
+        // printf("%s - %s\n", info.address, info.name);
     }
 
     ret = 0;
