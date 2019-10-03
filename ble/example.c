@@ -16,13 +16,11 @@ int main() {
         BLEInfo * info = ble_info_list + i;
 
         const char * prefix = "Crimson_";
-        int ret = strncmp(info->name, prefix, sizeof(prefix));
+        int ret = strncmp(info->name, prefix, strlen(prefix));
         if (ret == 0) {
-            printf("%s - %s\n", info->address, info->name);
+            printf("%s - %s\n", info->addr, info->name);
         }
     }
-
-
 
     free(ble_info_list);
     return 0;

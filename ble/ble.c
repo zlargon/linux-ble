@@ -7,13 +7,19 @@
 #include <sys/select.h>     // select, FD_SET, FD_ZERO
 #include <unistd.h>         // read
 
+// bluez
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
+#include <bluetooth/hci_lib.h>
+
+
 // Internal Functions
 static long long get_current_time();
 static int ble_find_index_by_address(BLEInfo * list, size_t list_len, const char * address);
 static int eir_parse_name(uint8_t *eir, size_t eir_len, char *output_name, size_t output_name_len);
 
 // 1. ble_scan
-int ble_scan(BLEInfo **ble_info_list, size_t ble_info_list_len, int scan_time) {
+int ble_scan(BLEInfo **ble_info_list, int ble_info_list_len, int scan_time) {
     int ret = 0;
     long long start_time = get_current_time();
 
@@ -148,7 +154,7 @@ int ble_scan(BLEInfo **ble_info_list, size_t ble_info_list_len, int scan_time) {
 
         // parse address and name
         BLEInfo info = {};
-        ba2str(&(adv_info->bdaddr), info.address);
+        ba2str(&(adv_info->bdaddr), info.addr);
         ret = eir_parse_name(adv_info->data, adv_info->length, info.name, sizeof(info.name) - 1);
         if (ret == -1) {
             // no name
@@ -156,7 +162,7 @@ int ble_scan(BLEInfo **ble_info_list, size_t ble_info_list_len, int scan_time) {
         }
 
         // check duplicated
-        ret = ble_find_index_by_address(*ble_info_list, counter, info.address);
+        ret = ble_find_index_by_address(*ble_info_list, counter, info.addr);
         if (ret >= 0 || counter >= ble_info_list_len) {
             continue;
         }
@@ -164,9 +170,6 @@ int ble_scan(BLEInfo **ble_info_list, size_t ble_info_list_len, int scan_time) {
         // add info to list
         memcpy(*ble_info_list + counter, &info, sizeof(BLEInfo));
         counter++;
-
-        // debug: show the address and name
-        // printf("%s - %s\n", info.address, info.name);
     }
 
     ret = 0;
@@ -194,7 +197,7 @@ static int ble_find_index_by_address(BLEInfo * list, size_t list_len, const char
     for (int i = 0; i < list_len; i++) {
         BLEInfo * info = list + i;
 
-        int ret = memcmp(info->address, address, sizeof(info->address));
+        int ret = memcmp(info->addr, address, sizeof(info->addr));
         if (ret == 0) {
             return i;
         }
