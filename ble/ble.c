@@ -6,64 +6,73 @@
 #include <stdlib.h>         // exit
 #include <sys/select.h>     // select, FD_SET, FD_ZERO
 #include <unistd.h>         // read
-
-// bluez
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
-#include <bluetooth/hci_lib.h>
-
+#include <sys/ioctl.h>
 
 // Internal Functions
 static long long get_current_time();
 static int ble_find_index_by_address(BLEInfo * list, size_t list_len, const char * address);
 static int eir_parse_name(uint8_t *eir, size_t eir_len, char *output_name, size_t output_name_len);
 
-// 1. ble_scan
-int ble_scan(BLEInfo **ble_info_list, int ble_info_list_len, int scan_time) {
-    int ret = 0;
-    long long start_time = get_current_time();
-
+// 1. ble_init
+int ble_init(BLEDevice *ble) {
     // 1. create BLE device
-    int dev_id = hci_get_route(NULL);
-    int dd = hci_open_dev(dev_id);          // device description
-    if (dev_id < 0 || dd < 0) {
+    ble->dev_id = hci_get_route(NULL);
+    ble->dd = hci_open_dev(ble->dev_id);          // device description
+    if (ble->dev_id < 0 || ble->dd < 0) {
         perror("opening socket error");
         return -1;
     }
 
+    printf("dev_id = %d\n", ble->dev_id);
+    printf("dd = %d\n", ble->dd);
+
     // 2. save original filter
-    struct hci_filter original_filter;
-    hci_filter_clear(&original_filter);
-    socklen_t original_filter_len = sizeof(original_filter);
-    ret = getsockopt(dd, SOL_HCI, HCI_FILTER, &original_filter, &original_filter_len);
+    hci_filter_clear(&ble->of);
+    socklen_t of_len = sizeof(ble->of);
+    int ret = getsockopt(ble->dd, SOL_HCI, HCI_FILTER, &ble->of, &of_len);
     if (ret < 0) {
         perror("getsockopt failed");
-        goto close_dd;
+        return -1;
     }
 
-    // 3. setup new filter
-    struct hci_filter new_filter;
-    hci_filter_clear(&new_filter);
-    hci_filter_set_ptype(HCI_EVENT_PKT, &new_filter);       // HCI_EVENT_PKT
-    hci_filter_set_event(EVT_LE_META_EVENT, &new_filter);   // EVT_LE_META_EVENT
-    ret = setsockopt(dd, SOL_HCI, HCI_FILTER, &new_filter, sizeof(new_filter));
+    // 3. set new filter
+    struct hci_filter nf;
+    hci_filter_clear(&nf);
+    hci_filter_set_ptype(HCI_EVENT_PKT, &nf);       // HCI_EVENT_PKT
+    hci_filter_set_event(EVT_LE_META_EVENT, &nf);   // EVT_LE_META_EVENT
+    ret = setsockopt(ble->dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf));
     if (ret < 0) {
         perror("setsockopt failed");
-        goto close_dd;
+        return -1;
     }
 
-    // 4. always disable scan before set params
-    ret = hci_le_set_scan_enable(
-        dd,
+    return 0;
+}
+
+// 2. ble_close
+int ble_close(BLEDevice *ble) {
+    setsockopt(ble->dd, SOL_HCI, HCI_FILTER, &(ble->of), sizeof(ble->of));
+    hci_close_dev(ble->dd);
+    memset(ble, 0, sizeof(BLEDevice));
+    return 0;
+}
+
+// 3. ble_scan
+int ble_scan(BLEDevice *ble, BLEInfo **ble_info_list, int ble_info_list_len, int scan_time) {
+    long long start_time = get_current_time();
+
+    // 1. always disable scan before set params
+    int ret = hci_le_set_scan_enable(
+        ble->dd,
         0x00,       // disable
         0x00,       // no filter
         10000       // timeout
     );
     // not to check return value
 
-    // 5. set scan params
+    // 2. set scan params
     ret = hci_le_set_scan_parameters(
-        dd,
+        ble->dd,
         0x01,               // type
         htobs(0x0010),      // interval
         htobs(0x0010),      // window
@@ -73,28 +82,28 @@ int ble_scan(BLEInfo **ble_info_list, int ble_info_list_len, int scan_time) {
     );
     if (ret != 0) {
         perror("hci_le_set_scan_parameters");
-        goto reset_filter;
+        return -1;
     }
 
-    // 6. start scanning
+    // 3. start scanning
     ret = hci_le_set_scan_enable(
-        dd,
+        ble->dd,
         0x01,       // enable
         0x00,       // no filter
         10000       // timeout
     );
     if (ret != 0) {
         perror("hci_le_set_scan_enable");
-        goto reset_filter;
+        return -1;
     }
 
-    // 7. use 'select' to recieve data from fd
+    // 4. use 'select' to recieve data from fd
     int counter = 0;
     for (;;) {
         // set read file descriptions
         fd_set rfds;
         FD_ZERO(&rfds);
-        FD_SET(dd, &rfds);
+        FD_SET(ble->dd, &rfds);
 
         struct timeval tv = {
             .tv_sec = 1,
@@ -103,23 +112,22 @@ int ble_scan(BLEInfo **ble_info_list, int ble_info_list_len, int scan_time) {
 
         // select read fds
         ret = select(
-            dd + 1,     // MAX fd + 1
-            &rfds,      // read fds
-            NULL,       // write fds
-            NULL,       // except fds
-            &tv         // timeout (1 sec)
+            ble->dd + 1,    // MAX fd + 1
+            &rfds,          // read fds
+            NULL,           // write fds
+            NULL,           // except fds
+            &tv             // timeout (1 sec)
         );
 
         if (ret == -1) {
             perror("select error");
-            goto reset_filter;
+            return -1;
         }
 
         // check scan timeout
         if (get_current_time() - start_time > scan_time) {
             // BLE scan is done
-            ret = counter;
-            goto reset_filter;
+            return counter;
         }
 
         if (ret == 0) {
@@ -129,7 +137,7 @@ int ble_scan(BLEInfo **ble_info_list, int ble_info_list_len, int scan_time) {
 
         // ret > 0
         unsigned char buf[HCI_MAX_EVENT_SIZE] = { 0 };
-        int buff_size = read(dd, buf, sizeof(buf));
+        int buff_size = read(ble->dd, buf, sizeof(buf));
         if (buff_size == 0) {
             printf("read no data");
             continue;
@@ -171,17 +179,7 @@ int ble_scan(BLEInfo **ble_info_list, int ble_info_list_len, int scan_time) {
         memcpy(*ble_info_list + counter, &info, sizeof(BLEInfo));
         counter++;
     }
-
-    ret = 0;
-
-reset_filter:
-    setsockopt(dd, SOL_HCI, HCI_FILTER, &original_filter, original_filter_len);
-
-close_dd:
-    hci_close_dev(dd);
-    return ret;
 }
-
 
 // Internal Functions
 
