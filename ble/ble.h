@@ -19,3 +19,4 @@ typedef struct {
 int ble_init(BLEDevice *ble);
 int ble_close(BLEDevice *ble);
 int ble_scan(BLEDevice * ble, BLEInfo **ble_info_list, int ble_info_list_len, int scan_time);
+int ble_connect(BLEDevice *ble, const char * address);

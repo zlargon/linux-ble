@@ -33,6 +33,8 @@ int main() {
 
     printf("address: %s\n", address);
 
+    ble_connect(&ble, address);
+
     free(ble_info_list);
     ble_close(&ble);
     return 0;

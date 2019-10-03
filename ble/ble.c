@@ -181,6 +181,49 @@ int ble_scan(BLEDevice *ble, BLEInfo **ble_info_list, int ble_info_list_len, int
     }
 }
 
+// 4. ble_connect
+int ble_connect(BLEDevice *ble, const char * address) {
+
+    // 1. get bdaddr
+    bdaddr_t bdaddr;
+	memset(&bdaddr, 0, sizeof(bdaddr_t));
+	str2ba(address, &bdaddr);
+
+    // 2. create connection
+    uint16_t handle;
+	int ret = hci_le_create_conn(
+        ble->dd,
+        htobs(0x0004),      // uint16_t interval
+        htobs(0x0004),      // uint16_t window
+        0x00,               // uint8_t initiator_filter (Use peer address)
+        LE_PUBLIC_ADDRESS,  // uint8_t peer_bdaddr_type
+        bdaddr,
+        LE_PUBLIC_ADDRESS,  // uint8_t own_bdaddr_type
+        htobs(0x000F),      // uint16_t min_interval
+        htobs(0x000F),      // uint16_t max_interval
+        htobs(0x0000),      // uint16_t latency
+        htobs(0x0C80),      // uint16_t supervision_timeout
+        htobs(0x0001),      // uint16_t min_ce_length
+        htobs(0x0001),      // uint16_t max_ce_length
+        &handle,
+        25000
+    );
+	if (ret < 0) {
+		perror("Could not create connection");
+        return -1;
+	}
+
+    // success
+    printf("Connection handle %d\n", handle);
+
+
+    usleep(10000);
+    printf("disconnect\n");
+	hci_disconnect(ble->dd, handle, HCI_OE_USER_ENDED_CONNECTION, 10000);
+    return 0;
+}
+
+
 // Internal Functions
 
 // 1. get_current_time
