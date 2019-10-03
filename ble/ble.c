@@ -38,7 +38,7 @@ int ble_scan(BLEInfo **ble_info_list, int ble_info_list_len, int scan_time) {
     ret = getsockopt(dd, SOL_HCI, HCI_FILTER, &original_filter, &original_filter_len);
     if (ret < 0) {
         perror("getsockopt failed");
-        return -1;
+        goto close_dd;
     }
 
     // 3. setup new filter
@@ -49,7 +49,7 @@ int ble_scan(BLEInfo **ble_info_list, int ble_info_list_len, int scan_time) {
     ret = setsockopt(dd, SOL_HCI, HCI_FILTER, &new_filter, sizeof(new_filter));
     if (ret < 0) {
         perror("setsockopt failed");
-        return -1;
+        goto close_dd;
     }
 
     // 4. always disable scan before set params
@@ -73,7 +73,7 @@ int ble_scan(BLEInfo **ble_info_list, int ble_info_list_len, int scan_time) {
     );
     if (ret != 0) {
         perror("hci_le_set_scan_parameters");
-        goto end;
+        goto reset_filter;
     }
 
     // 6. start scanning
@@ -85,7 +85,7 @@ int ble_scan(BLEInfo **ble_info_list, int ble_info_list_len, int scan_time) {
     );
     if (ret != 0) {
         perror("hci_le_set_scan_enable");
-        goto end;
+        goto reset_filter;
     }
 
     // 7. use 'select' to recieve data from fd
@@ -112,14 +112,14 @@ int ble_scan(BLEInfo **ble_info_list, int ble_info_list_len, int scan_time) {
 
         if (ret == -1) {
             perror("select error");
-            goto end;
+            goto reset_filter;
         }
 
         // check scan timeout
         if (get_current_time() - start_time > scan_time) {
             // BLE scan is done
             ret = counter;
-            goto end;
+            goto reset_filter;
         }
 
         if (ret == 0) {
@@ -173,8 +173,12 @@ int ble_scan(BLEInfo **ble_info_list, int ble_info_list_len, int scan_time) {
     }
 
     ret = 0;
-end:
+
+reset_filter:
     setsockopt(dd, SOL_HCI, HCI_FILTER, &original_filter, original_filter_len);
+
+close_dd:
+    hci_close_dev(dd);
     return ret;
 }
 
