@@ -5,13 +5,12 @@
 #include "ble.h"
 
 int main() {
-    // char * address = "D0:F6:1D:50:9F:1A";
-
+    puts("\nhci_init");
     HCIDevice hci = {};
     hci_init(&hci);
 
     // scan BLE devices
-    puts("Scan");
+    puts("\nhci_scan_ble");
     BLEDevice * ble_list = (BLEDevice *) calloc(20, sizeof(BLEDevice));
     int ble_list_len = hci_scan_ble(&hci, &ble_list, 20, 5000);
     if (ble_list_len == -1) {
@@ -19,22 +18,23 @@ int main() {
     }
 
     // filter Crimson_ device
-    char * ble_addr = NULL;
+    BLEDevice * ble = NULL;
     for (int i = 0; i < ble_list_len; i++) {
-        BLEDevice * ble = ble_list + i;
+        BLEDevice * tmp = ble_list + i;
 
         const char * prefix = "Crimson_";
-        int ret = strncmp(ble->name, prefix, strlen(prefix));
+        int ret = strncmp(tmp->name, prefix, strlen(prefix));
         if (ret == 0) {
-            printf("%s - %s\n", ble->addr, ble->name);
-            ble_addr = ble->addr;
+            printf("%s - %s\n", tmp->addr, tmp->name);
+            ble = tmp;
         }
     }
 
-    printf("BLE device address: %s\n", ble_addr);
-
-    // connect ble device
-    hci_connect_ble(&hci, ble_addr);
+    // show device
+    printf("\n  ble addr: %s\n", ble->addr);
+    printf("  ble name: %s\n",   ble->name);
+    printf("hci dev_id: %d\n",   ble->hci->dev_id);
+    printf("    hci dd: %d\n",   ble->hci->dd);
 
     free(ble_list);
     hci_close(&hci);
