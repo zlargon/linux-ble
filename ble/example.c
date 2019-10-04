@@ -12,22 +12,22 @@ int main() {
 
     // scan BLE devices
     puts("Scan");
-    BLEInfo * ble_info_list = (BLEInfo *) calloc(20, sizeof(BLEInfo));
-    int ble_info_list_len = hci_scan_ble(&hci, &ble_info_list, 20, 5000);
-    if (ble_info_list_len == -1) {
+    BLEDevice * ble_list = (BLEDevice *) calloc(20, sizeof(BLEDevice));
+    int ble_list_len = hci_scan_ble(&hci, &ble_list, 20, 5000);
+    if (ble_list_len == -1) {
         return -1;
     }
 
     // filter Crimson_ device
     char * ble_addr = NULL;
-    for (int i = 0; i < ble_info_list_len; i++) {
-        BLEInfo * info = ble_info_list + i;
+    for (int i = 0; i < ble_list_len; i++) {
+        BLEDevice * ble = ble_list + i;
 
         const char * prefix = "Crimson_";
-        int ret = strncmp(info->name, prefix, strlen(prefix));
+        int ret = strncmp(ble->name, prefix, strlen(prefix));
         if (ret == 0) {
-            printf("%s - %s\n", info->addr, info->name);
-            ble_addr = info->addr;
+            printf("%s - %s\n", ble->addr, ble->name);
+            ble_addr = ble->addr;
         }
     }
 
@@ -36,7 +36,7 @@ int main() {
     // connect ble device
     hci_connect_ble(&hci, ble_addr);
 
-    free(ble_info_list);
+    free(ble_list);
     hci_close(&hci);
     return 0;
 }

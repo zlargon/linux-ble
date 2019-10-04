@@ -10,7 +10,7 @@
 
 // Internal Functions
 static long long get_current_time();
-static int ble_find_index_by_address(BLEInfo * list, size_t list_len, const char * address);
+static int ble_find_index_by_address(BLEDevice * list, size_t list_len, const char * address);
 static int eir_parse_name(uint8_t *eir, size_t eir_len, char *output_name, size_t output_name_len);
 
 // 1. hci_init
@@ -58,7 +58,7 @@ int hci_close(HCIDevice * hci) {
 }
 
 // 3. hci_scan_ble
-int hci_scan_ble(HCIDevice * hci, BLEInfo ** ble_info_list, int ble_info_list_len, int scan_time) {
+int hci_scan_ble(HCIDevice * hci, BLEDevice ** ble_list, int ble_list_len, int scan_time) {
     long long start_time = get_current_time();
 
     // 1. always disable scan before set params
@@ -161,22 +161,27 @@ int hci_scan_ble(HCIDevice * hci, BLEInfo ** ble_info_list, int ble_info_list_le
         le_advertising_info *adv_info = (le_advertising_info *) (meta->data + 1);
 
         // parse address and name
-        BLEInfo info = {};
-        ba2str(&(adv_info->bdaddr), info.addr);
-        ret = eir_parse_name(adv_info->data, adv_info->length, info.name, sizeof(info.name) - 1);
+        BLEDevice ble = {};
+
+        // 1. check name
+        ret = eir_parse_name(adv_info->data, adv_info->length, ble.name, sizeof(ble.name) - 1);
         if (ret == -1) {
             // no name
             continue;
         }
 
-        // check duplicated
-        ret = ble_find_index_by_address(*ble_info_list, counter, info.addr);
-        if (ret >= 0 || counter >= ble_info_list_len) {
+        // 2. check duplicated address
+        ba2str(&(adv_info->bdaddr), ble.addr);
+        ret = ble_find_index_by_address(*ble_list, counter, ble.addr);
+        if (ret >= 0 || counter >= ble_list_len) {
             continue;
         }
 
+        // 3. set hci
+        ble.hci = hci;
+
         // add info to list
-        memcpy(*ble_info_list + counter, &info, sizeof(BLEInfo));
+        memcpy(*ble_list + counter, &ble, sizeof(BLEDevice));
         counter++;
     }
 }
@@ -237,11 +242,11 @@ static long long get_current_time() {
 }
 
 // 2. ble_find_index_by_address
-static int ble_find_index_by_address(BLEInfo * list, size_t list_len, const char * address) {
+static int ble_find_index_by_address(BLEDevice * list, size_t list_len, const char * address) {
     for (int i = 0; i < list_len; i++) {
-        BLEInfo * info = list + i;
+        BLEDevice * ble = list + i;
 
-        int ret = memcmp(info->addr, address, sizeof(info->addr));
+        int ret = memcmp(ble->addr, address, sizeof(ble->addr));
         if (ret == 0) {
             return i;
         }
