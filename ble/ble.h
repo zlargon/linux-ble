@@ -11,12 +11,12 @@ typedef struct {
 } BLEInfo;
 
 typedef struct {
-    int dev_id;
+    int dev_id;             // device id
     int dd;                 // device description
     struct hci_filter of;   // original filter
-} BLEDevice;
+} HCIDevice;
 
-int ble_init(BLEDevice *ble);
-int ble_close(BLEDevice *ble);
-int ble_scan(BLEDevice * ble, BLEInfo **ble_info_list, int ble_info_list_len, int scan_time);
-int ble_connect(BLEDevice *ble, const char * address);
+int hci_init(HCIDevice * hci);
+int hci_close(HCIDevice * hci);
+int hci_scan_ble(HCIDevice * hci, BLEInfo ** ble_info_list, int ble_info_list_len, int scan_time);
+int hci_connect_ble(HCIDevice * hci, const char * ble_addr);
