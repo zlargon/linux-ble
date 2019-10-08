@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>     // sleep
 #include "ble.h"
+#include "type_name.h"
 
 void wait(unsigned int sec) {
     printf("\nwait %u sec...", sec);
@@ -48,8 +49,18 @@ int main() {
 
     // 4. show connected list
     wait(3);
-    puts("hci_conn_list");
-    hci_conn_list(&hci);
+    puts("hci_update_conn_list");
+    hci_update_conn_list(&hci);
+    for (int i = 0; i < hci.conn.num; i++) {
+        struct hci_conn_info * info = hci.conn.list + i;
+        char addr[18] = {};
+        ba2str(&(info->bdaddr), addr);
+        printf("%s\n", addr);
+        printf("    baseband  = %s\n",   baseband_name(info->type));
+        printf("    link_mode = %s\n",   link_mode_name(info->link_mode));
+        printf("    handle    = %d\n",   info->handle);
+        printf("    state     = %s\n\n", conn_state_name(info->state));
+    }
 
     // 5. disconnect
     wait(3);
