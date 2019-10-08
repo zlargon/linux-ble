@@ -11,8 +11,8 @@ int main() {
 
     // scan BLE devices
     puts("\nhci_scan_ble");
-    BLEDevice * ble_list = (BLEDevice *) calloc(20, sizeof(BLEDevice));
-    int ble_list_len = hci_scan_ble(&hci, &ble_list, 20, 5000);
+    BLEDevice ble_list[20] = {};
+    int ble_list_len = hci_scan_ble(&hci, ble_list, 20, 5000);
     if (ble_list_len == -1) {
         return -1;
     }
@@ -29,14 +29,15 @@ int main() {
             ble = tmp;
         }
     }
+    if (ble == NULL) {
+        puts("Cimrson Device is not found");
+        return 0;
+    }
 
-    // show device
-    printf("\n  ble addr: %s\n", ble->addr);
-    printf("  ble name: %s\n",   ble->name);
-    printf("hci dev_id: %d\n",   ble->hci->dev_id);
-    printf("    hci dd: %d\n",   ble->hci->dd);
+    // show crimson device
+    printf("\n%s | rssi: %d | %s\n", ble->addr, ble->rssi, ble->name);
+    printf("hci dev_id: %d, dd = %d\n", ble->hci->dev_id, ble->hci->dd);
 
-    free(ble_list);
     hci_close(&hci);
     return 0;
 }

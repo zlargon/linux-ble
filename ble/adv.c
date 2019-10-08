@@ -77,8 +77,7 @@ int adv_parse_data(uint8_t * ptr, Adv * adv) {
 
     // 5. rssi (TODO: check rssi)
     ptr += LE_ADVERTISING_INFO_SIZE + info->length;  // 9 + data_len
-    const int8_t * rssi = (uint8_t *) ptr;
-    adv->rssi = *rssi;
+    adv->rssi = ptr[0];
     ptr++;
 
     // printf("%s (%s)\n", adv->addr, adv_get_address_type_name(adv->addr_type));
