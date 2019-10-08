@@ -25,3 +25,4 @@ int hci_close(HCIDevice * hci);
 int hci_scan_ble(HCIDevice * hci, BLEDevice * ble_list, int ble_list_len, int scan_time);
 
 int ble_connect(BLEDevice * ble);
+int ble_disconnect(BLEDevice * ble);

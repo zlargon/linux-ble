@@ -4,6 +4,12 @@
 #include <unistd.h>     // sleep
 #include "ble.h"
 
+void wait(unsigned int sec) {
+    printf("\nwait %u sec...", sec);
+    sleep(3);
+    puts("\n");
+}
+
 int main() {
     puts("\nhci_init");
     HCIDevice hci = {};
@@ -34,11 +40,17 @@ int main() {
         return 0;
     }
 
-    sleep(5);
+    wait(3);
 
     // connect
-    printf("\nble_connect => %s (%s)\n", ble->addr, ble->name);
+    printf("ble_connect => %s (%s)\n", ble->addr, ble->name);
     ble_connect(ble);
+
+    wait(3);
+
+    // disconnect
+    printf("ble_disconnect = %s (%s)\n", ble->addr, ble->name);
+    ble_disconnect(ble);
 
     hci_close(&hci);
     return 0;

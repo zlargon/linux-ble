@@ -275,12 +275,23 @@ int ble_connect(BLEDevice * ble) {
     // success
     printf("Connection handle %d\n", handle);
     ble->handle = handle;
-
-    sleep(10);
-
-    printf("disconnect\n");
-    hci_disconnect(hci->dd, ble->handle, HCI_OE_USER_ENDED_CONNECTION, 10000);
     return 0;
+}
+
+// 5. ble_disconnect
+int ble_disconnect(BLEDevice * ble) {
+    int ret = hci_disconnect(
+        ble->hci->dd,
+        ble->handle,
+        HCI_OE_USER_ENDED_CONNECTION,
+        10000
+    );
+
+    if (ret == -1) {
+        perror("hci_disconnect failed");
+    }
+
+    return ret;
 }
 
 
