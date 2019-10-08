@@ -17,9 +17,11 @@ typedef struct {
     int8_t rssi;
 
     HCIDevice * hci;
+    uint16_t handle;
 } BLEDevice;
 
 int hci_init(HCIDevice * hci);
 int hci_close(HCIDevice * hci);
 int hci_scan_ble(HCIDevice * hci, BLEDevice * ble_list, int ble_list_len, int scan_time);
-int hci_connect_ble(HCIDevice * hci, const char * ble_addr);
+
+int ble_connect(BLEDevice * ble);

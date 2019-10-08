@@ -24,8 +24,7 @@ int hci_init(HCIDevice * hci) {
         return -1;
     }
 
-    printf("dev_id = %d\n", hci->dev_id);
-    printf("dd = %d\n", hci->dd);
+    printf("hci%d (socket = %d)\n", hci->dev_id, hci->dd);
 
     // 2. save original filter
     hci_filter_clear(&hci->of);
@@ -238,17 +237,19 @@ int hci_scan_ble(HCIDevice * hci, BLEDevice * ble_list, int ble_list_len, int sc
     }
 }
 
-// 4. hci_connect_ble
-int hci_connect_ble(HCIDevice * hci, const char * ble_addr) {
+// 4. ble_connect
+int ble_connect(BLEDevice * ble) {
+
+    HCIDevice * hci = ble->hci;
 
     // 1. get bdaddr
-    bdaddr_t bdaddr;
-	memset(&bdaddr, 0, sizeof(bdaddr_t));
-	str2ba(ble_addr, &bdaddr);
+    bdaddr_t bdaddr = {};
+    memset(&bdaddr, 0, sizeof(bdaddr_t));
+    str2ba(ble->addr, &bdaddr);
 
     // 2. create connection
     uint16_t handle;
-	int ret = hci_le_create_conn(
+    int ret = hci_le_create_conn(
         hci->dd,
         htobs(0x0004),      // uint16_t interval
         htobs(0x0004),      // uint16_t window
@@ -265,17 +266,20 @@ int hci_connect_ble(HCIDevice * hci, const char * ble_addr) {
         &handle,
         25000
     );
-	if (ret < 0) {
-		perror("Could not create connection");
+    if (ret < 0) {
+        // FIXME: always occur "Connection timed out", but the connection do establish successfully
+        perror("Could not create connection");
         return -1;
-	}
+    }
 
     // success
     printf("Connection handle %d\n", handle);
+    ble->handle = handle;
 
     sleep(10);
+
     printf("disconnect\n");
-	hci_disconnect(hci->dd, handle, HCI_OE_USER_ENDED_CONNECTION, 10000);
+    hci_disconnect(hci->dd, ble->handle, HCI_OE_USER_ENDED_CONNECTION, 10000);
     return 0;
 }
 

@@ -34,9 +34,11 @@ int main() {
         return 0;
     }
 
-    // show crimson device
-    printf("\n%s | rssi: %d | %s\n", ble->addr, ble->rssi, ble->name);
-    printf("hci dev_id: %d, dd = %d\n", ble->hci->dev_id, ble->hci->dd);
+    sleep(5);
+
+    // connect
+    printf("\nble_connect => %s (%s)\n", ble->addr, ble->name);
+    ble_connect(ble);
 
     hci_close(&hci);
     return 0;
