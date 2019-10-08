@@ -11,11 +11,12 @@ void wait(unsigned int sec) {
 }
 
 int main() {
+    // 1. create hci
     puts("\nhci_init");
     HCIDevice hci = {};
     hci_init(&hci);
 
-    // scan BLE devices
+    // 2. hci scan BLE devices
     puts("\nhci_scan_ble");
     BLEDevice ble_list[20] = {};
     int ble_list_len = hci_scan_ble(&hci, ble_list, 20, 5000);
@@ -40,18 +41,22 @@ int main() {
         return 0;
     }
 
+    // 3. connect
     wait(3);
-
-    // connect
     printf("ble_connect => %s (%s)\n", ble->addr, ble->name);
     ble_connect(ble);
 
+    // 4. show connected list
     wait(3);
+    puts("hci_conn_list");
+    hci_conn_list(&hci);
 
-    // disconnect
+    // 5. disconnect
+    wait(3);
     printf("ble_disconnect = %s (%s)\n", ble->addr, ble->name);
     ble_disconnect(ble);
 
+    // 6. close hci
     hci_close(&hci);
     return 0;
 }

@@ -22,7 +22,9 @@ typedef struct {
 
 int hci_init(HCIDevice * hci);
 int hci_close(HCIDevice * hci);
+
 int hci_scan_ble(HCIDevice * hci, BLEDevice * ble_list, int ble_list_len, int scan_time);
+int hci_conn_list(HCIDevice * hci);
 
 int ble_connect(BLEDevice * ble);
 int ble_disconnect(BLEDevice * ble);

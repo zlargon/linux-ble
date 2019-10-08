@@ -57,7 +57,65 @@ int hci_close(HCIDevice * hci) {
     return 0;
 }
 
-// 3. hci_scan_ble
+static char * baseband_type_name(uint8_t type) {
+    switch (type) {
+        case SCO_LINK:  return "SCO";
+        case ACL_LINK:  return "ACL";
+        case ESCO_LINK: return "eSCO";
+        case 0x80:      return "LE";        // LE_LINK in hcitool.c
+        default:        return "Unknown";
+    }
+}
+
+// 3. hci_conn_list
+int hci_conn_list(HCIDevice * hci) {
+    struct hci_conn_list_req *cl;
+    if (!(cl = malloc(10 * sizeof(struct hci_conn_info) + sizeof(struct hci_conn_list_req)))) {
+        perror("Can't allocate memory");
+        return -1;
+    }
+
+    int sk = socket(AF_BLUETOOTH, SOCK_RAW | SOCK_CLOEXEC, BTPROTO_HCI);
+    if (sk < 0) {
+        perror("create socket failed");
+        return -1;
+    }
+
+    cl->dev_id   = hci->dev_id;
+    cl->conn_num = 10;
+    struct hci_conn_info * ci = cl->conn_info;
+
+    if (ioctl(sk, HCIGETCONNLIST, (void *) cl)) {
+        perror("Can't get connection list");
+        // todo: free cl
+        close(sk);
+        return -1;
+    }
+
+    for (int i = 0; i < cl->conn_num; i++, ci++) {
+        char addr[18] = {};
+        ba2str(&ci->bdaddr, addr);
+
+        char *str = hci_lmtostr(ci->link_mode);
+
+        printf("\t%s %s %s handle %d state %d lm %s\n",
+            ci->out ? "<" : ">",
+            baseband_type_name(ci->type),
+            addr,
+            ci->handle,
+            ci->state,
+            str
+        );
+
+        bt_free(str);
+    }
+
+    free(cl);
+    close(sk);
+    return 0;
+}
+
+// 4. hci_scan_ble
 int hci_scan_ble(HCIDevice * hci, BLEDevice * ble_list, int ble_list_len, int scan_time) {
     const long long start_time = get_current_time();
 
@@ -237,7 +295,7 @@ int hci_scan_ble(HCIDevice * hci, BLEDevice * ble_list, int ble_list_len, int sc
     }
 }
 
-// 4. ble_connect
+// 5. ble_connect
 int ble_connect(BLEDevice * ble) {
 
     HCIDevice * hci = ble->hci;
@@ -278,7 +336,7 @@ int ble_connect(BLEDevice * ble) {
     return 0;
 }
 
-// 5. ble_disconnect
+// 6. ble_disconnect
 int ble_disconnect(BLEDevice * ble) {
     int ret = hci_disconnect(
         ble->hci->dd,
