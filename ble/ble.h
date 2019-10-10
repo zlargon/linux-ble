@@ -8,8 +8,14 @@
 #define HCI_MAX_CONN  20
 
 typedef struct {
-    int dev_id;             // device id
-    int dd;                 // device description
+    int dev_id;     // device id
+    int dd;         // device description (socket)
+    char name[HCI_MAX_NAME_LENGTH];
+
+    // address
+    bdaddr_t addr;
+    char addr_s[18];
+
     struct hci_filter of;   // original filter
 
     // connect list

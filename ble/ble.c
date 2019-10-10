@@ -25,12 +25,36 @@ int hci_init(HCIDevice * hci) {
         return -1;
     }
 
-    printf("hci%d (socket = %d)\n", hci->dev_id, hci->dd);
+    // 2. get HCI bluetooth device address
+    struct hci_dev_info dev_info = {};
+    int ret = hci_devinfo(hci->dev_id, &dev_info);
+    if (ret != 0) {
+        perror("hci_devinfo failed");
+        return -1;
+    }
+
+    // 3. get HCI name
+    ret = hci_read_local_name(hci->dd, HCI_MAX_NAME_LENGTH, hci->name, 0);
+    if (ret != 0) {
+        perror("hci_read_local_name failed");
+        return -1;
+    }
+
+    // 4. set address
+    memcpy(&(hci->addr), &(dev_info.bdaddr), sizeof(bdaddr_t)); // addr
+    ba2str(&(hci->addr), hci->addr_s);                          // addr_s
+
+    printf("| id = %d | sock = %d | %s | %s\n",
+        hci->dev_id,
+        hci->dd,
+        hci->addr_s,
+        hci->name
+    );
 
     // 2. save original filter
     hci_filter_clear(&hci->of);
     socklen_t of_len = sizeof(hci->of);
-    int ret = getsockopt(hci->dd, SOL_HCI, HCI_FILTER, &hci->of, &of_len);
+    ret = getsockopt(hci->dd, SOL_HCI, HCI_FILTER, &hci->of, &of_len);
     if (ret < 0) {
         perror("getsockopt failed");
         return -1;
@@ -383,7 +407,7 @@ static int ble_find_index_by_address(BLEDevice * list, size_t list_len, const ch
     return -1;  // not found
 }
 
-// eir_parse_name
+// 3. eir_parse_name
 static int eir_parse_name(uint8_t *eir, size_t eir_len, char *output_name, size_t output_name_len) {
     size_t index = 0;
     while (index < eir_len) {
