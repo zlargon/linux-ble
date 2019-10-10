@@ -38,68 +38,68 @@ extern "C" {
 #include <netinet/in.h>
 
 #ifndef AF_BLUETOOTH
-#define AF_BLUETOOTH	31
-#define PF_BLUETOOTH	AF_BLUETOOTH
+#define AF_BLUETOOTH    31
+#define PF_BLUETOOTH    AF_BLUETOOTH
 #endif
 
-#define BTPROTO_L2CAP	0
-#define BTPROTO_HCI	1
-#define BTPROTO_SCO	2
-#define BTPROTO_RFCOMM	3
-#define BTPROTO_BNEP	4
-#define BTPROTO_CMTP	5
-#define BTPROTO_HIDP	6
-#define BTPROTO_AVDTP	7
+#define BTPROTO_L2CAP   0
+#define BTPROTO_HCI 1
+#define BTPROTO_SCO 2
+#define BTPROTO_RFCOMM  3
+#define BTPROTO_BNEP    4
+#define BTPROTO_CMTP    5
+#define BTPROTO_HIDP    6
+#define BTPROTO_AVDTP   7
 
-#define SOL_HCI		0
-#define SOL_L2CAP	6
-#define SOL_SCO		17
-#define SOL_RFCOMM	18
+#define SOL_HCI     0
+#define SOL_L2CAP   6
+#define SOL_SCO     17
+#define SOL_RFCOMM  18
 
 #ifndef SOL_BLUETOOTH
-#define SOL_BLUETOOTH	274
+#define SOL_BLUETOOTH   274
 #endif
 
-#define BT_SECURITY	4
+#define BT_SECURITY 4
 struct bt_security {
-	uint8_t level;
-	uint8_t key_size;
+    uint8_t level;
+    uint8_t key_size;
 };
-#define BT_SECURITY_SDP		0
-#define BT_SECURITY_LOW		1
-#define BT_SECURITY_MEDIUM	2
-#define BT_SECURITY_HIGH	3
-#define BT_SECURITY_FIPS	4
+#define BT_SECURITY_SDP     0
+#define BT_SECURITY_LOW     1
+#define BT_SECURITY_MEDIUM  2
+#define BT_SECURITY_HIGH    3
+#define BT_SECURITY_FIPS    4
 
-#define BT_DEFER_SETUP	7
+#define BT_DEFER_SETUP  7
 
-#define BT_FLUSHABLE	8
+#define BT_FLUSHABLE    8
 
-#define BT_FLUSHABLE_OFF	0
-#define BT_FLUSHABLE_ON		1
+#define BT_FLUSHABLE_OFF    0
+#define BT_FLUSHABLE_ON     1
 
-#define BT_POWER		9
+#define BT_POWER        9
 struct bt_power {
-	uint8_t force_active;
+    uint8_t force_active;
 };
 #define BT_POWER_FORCE_ACTIVE_OFF 0
 #define BT_POWER_FORCE_ACTIVE_ON  1
 
-#define BT_CHANNEL_POLICY	10
+#define BT_CHANNEL_POLICY   10
 
 /* BR/EDR only (default policy)
  *   AMP controllers cannot be used.
  *   Channel move requests from the remote device are denied.
  *   If the L2CAP channel is currently using AMP, move the channel to BR/EDR.
  */
-#define BT_CHANNEL_POLICY_BREDR_ONLY		0
+#define BT_CHANNEL_POLICY_BREDR_ONLY        0
 
 /* BR/EDR Preferred
  *   Allow use of AMP controllers.
  *   If the L2CAP channel is currently on AMP, move it to BR/EDR.
  *   Channel move requests from the remote device are allowed.
  */
-#define BT_CHANNEL_POLICY_BREDR_PREFERRED	1
+#define BT_CHANNEL_POLICY_BREDR_PREFERRED   1
 
 /* AMP Preferred
  *   Allow use of AMP controllers
@@ -110,30 +110,30 @@ struct bt_power {
  *     and configure the channel directly on an AMP controller rather
  *     than BR/EDR.
  */
-#define BT_CHANNEL_POLICY_AMP_PREFERRED		2
+#define BT_CHANNEL_POLICY_AMP_PREFERRED     2
 
-#define BT_VOICE		11
+#define BT_VOICE        11
 struct bt_voice {
-	uint16_t setting;
+    uint16_t setting;
 };
 
-#define BT_SNDMTU		12
-#define BT_RCVMTU		13
+#define BT_SNDMTU       12
+#define BT_RCVMTU       13
 
-#define BT_VOICE_TRANSPARENT			0x0003
-#define BT_VOICE_CVSD_16BIT			0x0060
+#define BT_VOICE_TRANSPARENT            0x0003
+#define BT_VOICE_CVSD_16BIT         0x0060
 
 /* Connection and socket states */
 enum {
-	BT_CONNECTED = 1, /* Equal to TCP_ESTABLISHED to make net code happy */
-	BT_OPEN,
-	BT_BOUND,
-	BT_LISTEN,
-	BT_CONNECT,
-	BT_CONNECT2,
-	BT_CONFIG,
-	BT_DISCONN,
-	BT_CLOSED
+    BT_CONNECTED = 1, /* Equal to TCP_ESTABLISHED to make net code happy */
+    BT_OPEN,
+    BT_BOUND,
+    BT_LISTEN,
+    BT_CONNECT,
+    BT_CONNECT2,
+    BT_CONFIG,
+    BT_DISCONN,
+    BT_CLOSED
 };
 
 /* Byte order conversions */
@@ -156,142 +156,142 @@ enum {
 #endif
 
 /* Bluetooth unaligned access */
-#define bt_get_unaligned(ptr)			\
-__extension__ ({				\
-	struct __attribute__((packed)) {	\
-		__typeof__(*(ptr)) __v;		\
-	} *__p = (__typeof__(__p)) (ptr);	\
-	__p->__v;				\
+#define bt_get_unaligned(ptr)           \
+__extension__ ({                \
+    struct __attribute__((packed)) {    \
+        __typeof__(*(ptr)) __v;     \
+    } *__p = (__typeof__(__p)) (ptr);   \
+    __p->__v;               \
 })
 
-#define bt_put_unaligned(val, ptr)		\
-do {						\
-	struct __attribute__((packed)) {	\
-		__typeof__(*(ptr)) __v;		\
-	} *__p = (__typeof__(__p)) (ptr);	\
-	__p->__v = (val);			\
+#define bt_put_unaligned(val, ptr)      \
+do {                        \
+    struct __attribute__((packed)) {    \
+        __typeof__(*(ptr)) __v;     \
+    } *__p = (__typeof__(__p)) (ptr);   \
+    __p->__v = (val);           \
 } while(0)
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 static inline uint64_t bt_get_le64(const void *ptr)
 {
-	return bt_get_unaligned((const uint64_t *) ptr);
+    return bt_get_unaligned((const uint64_t *) ptr);
 }
 
 static inline uint64_t bt_get_be64(const void *ptr)
 {
-	return bswap_64(bt_get_unaligned((const uint64_t *) ptr));
+    return bswap_64(bt_get_unaligned((const uint64_t *) ptr));
 }
 
 static inline uint32_t bt_get_le32(const void *ptr)
 {
-	return bt_get_unaligned((const uint32_t *) ptr);
+    return bt_get_unaligned((const uint32_t *) ptr);
 }
 
 static inline uint32_t bt_get_be32(const void *ptr)
 {
-	return bswap_32(bt_get_unaligned((const uint32_t *) ptr));
+    return bswap_32(bt_get_unaligned((const uint32_t *) ptr));
 }
 
 static inline uint16_t bt_get_le16(const void *ptr)
 {
-	return bt_get_unaligned((const uint16_t *) ptr);
+    return bt_get_unaligned((const uint16_t *) ptr);
 }
 
 static inline uint16_t bt_get_be16(const void *ptr)
 {
-	return bswap_16(bt_get_unaligned((const uint16_t *) ptr));
+    return bswap_16(bt_get_unaligned((const uint16_t *) ptr));
 }
 
 static inline void bt_put_le64(uint64_t val, const void *ptr)
 {
-	bt_put_unaligned(val, (uint64_t *) ptr);
+    bt_put_unaligned(val, (uint64_t *) ptr);
 }
 
 static inline void bt_put_be64(uint64_t val, const void *ptr)
 {
-	bt_put_unaligned(bswap_64(val), (uint64_t *) ptr);
+    bt_put_unaligned(bswap_64(val), (uint64_t *) ptr);
 }
 
 static inline void bt_put_le32(uint32_t val, const void *ptr)
 {
-	bt_put_unaligned(val, (uint32_t *) ptr);
+    bt_put_unaligned(val, (uint32_t *) ptr);
 }
 
 static inline void bt_put_be32(uint32_t val, const void *ptr)
 {
-	bt_put_unaligned(bswap_32(val), (uint32_t *) ptr);
+    bt_put_unaligned(bswap_32(val), (uint32_t *) ptr);
 }
 
 static inline void bt_put_le16(uint16_t val, const void *ptr)
 {
-	bt_put_unaligned(val, (uint16_t *) ptr);
+    bt_put_unaligned(val, (uint16_t *) ptr);
 }
 
 static inline void bt_put_be16(uint16_t val, const void *ptr)
 {
-	bt_put_unaligned(bswap_16(val), (uint16_t *) ptr);
+    bt_put_unaligned(bswap_16(val), (uint16_t *) ptr);
 }
 
 #elif __BYTE_ORDER == __BIG_ENDIAN
 static inline uint64_t bt_get_le64(const void *ptr)
 {
-	return bswap_64(bt_get_unaligned((const uint64_t *) ptr));
+    return bswap_64(bt_get_unaligned((const uint64_t *) ptr));
 }
 
 static inline uint64_t bt_get_be64(const void *ptr)
 {
-	return bt_get_unaligned((const uint64_t *) ptr);
+    return bt_get_unaligned((const uint64_t *) ptr);
 }
 
 static inline uint32_t bt_get_le32(const void *ptr)
 {
-	return bswap_32(bt_get_unaligned((const uint32_t *) ptr));
+    return bswap_32(bt_get_unaligned((const uint32_t *) ptr));
 }
 
 static inline uint32_t bt_get_be32(const void *ptr)
 {
-	return bt_get_unaligned((const uint32_t *) ptr);
+    return bt_get_unaligned((const uint32_t *) ptr);
 }
 
 static inline uint16_t bt_get_le16(const void *ptr)
 {
-	return bswap_16(bt_get_unaligned((const uint16_t *) ptr));
+    return bswap_16(bt_get_unaligned((const uint16_t *) ptr));
 }
 
 static inline uint16_t bt_get_be16(const void *ptr)
 {
-	return bt_get_unaligned((const uint16_t *) ptr);
+    return bt_get_unaligned((const uint16_t *) ptr);
 }
 
 static inline void bt_put_le64(uint64_t val, const void *ptr)
 {
-	bt_put_unaligned(bswap_64(val), (uint64_t *) ptr);
+    bt_put_unaligned(bswap_64(val), (uint64_t *) ptr);
 }
 
 static inline void bt_put_be64(uint64_t val, const void *ptr)
 {
-	bt_put_unaligned(val, (uint64_t *) ptr);
+    bt_put_unaligned(val, (uint64_t *) ptr);
 }
 
 static inline void bt_put_le32(uint32_t val, const void *ptr)
 {
-	bt_put_unaligned(bswap_32(val), (uint32_t *) ptr);
+    bt_put_unaligned(bswap_32(val), (uint32_t *) ptr);
 }
 
 static inline void bt_put_be32(uint32_t val, const void *ptr)
 {
-	bt_put_unaligned(val, (uint32_t *) ptr);
+    bt_put_unaligned(val, (uint32_t *) ptr);
 }
 
 static inline void bt_put_le16(uint16_t val, const void *ptr)
 {
-	bt_put_unaligned(bswap_16(val), (uint16_t *) ptr);
+    bt_put_unaligned(bswap_16(val), (uint16_t *) ptr);
 }
 
 static inline void bt_put_be16(uint16_t val, const void *ptr)
 {
-	bt_put_unaligned(val, (uint16_t *) ptr);
+    bt_put_unaligned(val, (uint16_t *) ptr);
 }
 #else
 #error "Unknown byte order"
@@ -299,7 +299,7 @@ static inline void bt_put_be16(uint16_t val, const void *ptr)
 
 /* BD Address */
 typedef struct {
-	uint8_t b[6];
+    uint8_t b[6];
 } __attribute__((packed)) bdaddr_t;
 
 /* BD Address type */
@@ -314,11 +314,11 @@ typedef struct {
 /* Copy, swap, convert BD Address */
 static inline int bacmp(const bdaddr_t *ba1, const bdaddr_t *ba2)
 {
-	return memcmp(ba1, ba2, sizeof(bdaddr_t));
+    return memcmp(ba1, ba2, sizeof(bdaddr_t));
 }
 static inline void bacpy(bdaddr_t *dst, const bdaddr_t *src)
 {
-	memcpy(dst, src, sizeof(bdaddr_t));
+    memcpy(dst, src, sizeof(bdaddr_t));
 }
 
 void baswap(bdaddr_t *dst, const bdaddr_t *src);
@@ -341,17 +341,17 @@ int bt_error(uint16_t code);
 const char *bt_compidtostr(int id);
 
 typedef struct {
-	uint8_t data[16];
+    uint8_t data[16];
 } uint128_t;
 
 static inline void bswap_128(const void *src, void *dst)
 {
-	const uint8_t *s = (const uint8_t *) src;
-	uint8_t *d = (uint8_t *) dst;
-	int i;
+    const uint8_t *s = (const uint8_t *) src;
+    uint8_t *d = (uint8_t *) dst;
+    int i;
 
-	for (i = 0; i < 16; i++)
-		d[15 - i] = s[i];
+    for (i = 0; i < 16; i++)
+        d[15 - i] = s[i];
 }
 
 #if __BYTE_ORDER == __BIG_ENDIAN
@@ -360,35 +360,35 @@ static inline void bswap_128(const void *src, void *dst)
 
 static inline void ntoh128(const uint128_t *src, uint128_t *dst)
 {
-	memcpy(dst, src, sizeof(uint128_t));
+    memcpy(dst, src, sizeof(uint128_t));
 }
 
 static inline void btoh128(const uint128_t *src, uint128_t *dst)
 {
-	bswap_128(src, dst);
+    bswap_128(src, dst);
 }
 
 #else
 
 static inline uint64_t ntoh64(uint64_t n)
 {
-	uint64_t h;
-	uint64_t tmp = ntohl(n & 0x00000000ffffffff);
+    uint64_t h;
+    uint64_t tmp = ntohl(n & 0x00000000ffffffff);
 
-	h = ntohl(n >> 32);
-	h |= tmp << 32;
+    h = ntohl(n >> 32);
+    h |= tmp << 32;
 
-	return h;
+    return h;
 }
 
 static inline void ntoh128(const uint128_t *src, uint128_t *dst)
 {
-	bswap_128(src, dst);
+    bswap_128(src, dst);
 }
 
 static inline void btoh128(const uint128_t *src, uint128_t *dst)
 {
-	memcpy(dst, src, sizeof(uint128_t));
+    memcpy(dst, src, sizeof(uint128_t));
 }
 
 #endif

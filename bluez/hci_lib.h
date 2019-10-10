@@ -31,21 +31,21 @@ extern "C" {
 #endif
 
 struct hci_request {
-	uint16_t ogf;
-	uint16_t ocf;
-	int      event;
-	void     *cparam;
-	int      clen;
-	void     *rparam;
-	int      rlen;
+    uint16_t ogf;
+    uint16_t ocf;
+    int      event;
+    void     *cparam;
+    int      clen;
+    void     *rparam;
+    int      rlen;
 };
 
 struct hci_version {
-	uint16_t manufacturer;
-	uint8_t  hci_ver;
-	uint16_t hci_rev;
-	uint8_t  lmp_ver;
-	uint16_t lmp_subver;
+    uint16_t manufacturer;
+    uint8_t  hci_ver;
+    uint16_t hci_rev;
+    uint8_t  lmp_ver;
+    uint16_t lmp_subver;
 };
 
 int hci_open_dev(int dev_id);
@@ -117,25 +117,25 @@ int hci_read_clock(int dd, uint16_t handle, uint8_t which, uint32_t *clock, uint
 
 int hci_le_set_scan_enable(int dev_id, uint8_t enable, uint8_t filter_dup, int to);
 int hci_le_set_scan_parameters(int dev_id, uint8_t type, uint16_t interval,
-					uint16_t window, uint8_t own_type,
-					uint8_t filter, int to);
+                    uint16_t window, uint8_t own_type,
+                    uint8_t filter, int to);
 int hci_le_set_advertise_enable(int dev_id, uint8_t enable, int to);
 int hci_le_create_conn(int dd, uint16_t interval, uint16_t window,
-		uint8_t initiator_filter, uint8_t peer_bdaddr_type,
-		bdaddr_t peer_bdaddr, uint8_t own_bdaddr_type,
-		uint16_t min_interval, uint16_t max_interval,
-		uint16_t latency, uint16_t supervision_timeout,
-		uint16_t min_ce_length, uint16_t max_ce_length,
-		uint16_t *handle, int to);
+        uint8_t initiator_filter, uint8_t peer_bdaddr_type,
+        bdaddr_t peer_bdaddr, uint8_t own_bdaddr_type,
+        uint16_t min_interval, uint16_t max_interval,
+        uint16_t latency, uint16_t supervision_timeout,
+        uint16_t min_ce_length, uint16_t max_ce_length,
+        uint16_t *handle, int to);
 int hci_le_conn_update(int dd, uint16_t handle, uint16_t min_interval,
-			uint16_t max_interval, uint16_t latency,
-			uint16_t supervision_timeout, int to);
+            uint16_t max_interval, uint16_t latency,
+            uint16_t supervision_timeout, int to);
 int hci_le_add_white_list(int dd, const bdaddr_t *bdaddr, uint8_t type, int to);
 int hci_le_rm_white_list(int dd, const bdaddr_t *bdaddr, uint8_t type, int to);
 int hci_le_read_white_list_size(int dd, uint8_t *size, int to);
 int hci_le_clear_white_list(int dd, int to);
 int hci_le_add_resolving_list(int dd, const bdaddr_t *bdaddr, uint8_t type,
-				uint8_t *peer_irk, uint8_t *local_irk, int to);
+                uint8_t *peer_irk, uint8_t *local_irk, int to);
 int hci_le_rm_resolving_list(int dd, const bdaddr_t *bdaddr, uint8_t type, int to);
 int hci_le_clear_resolving_list(int dd, int to);
 int hci_le_read_resolving_list_size(int dd, uint8_t *size, int to);
@@ -172,67 +172,67 @@ char *lmp_featurestostr(uint8_t *features, char *pref, int width);
 
 static inline void hci_set_bit(int nr, void *addr)
 {
-	*((uint32_t *) addr + (nr >> 5)) |= (1 << (nr & 31));
+    *((uint32_t *) addr + (nr >> 5)) |= (1 << (nr & 31));
 }
 
 static inline void hci_clear_bit(int nr, void *addr)
 {
-	*((uint32_t *) addr + (nr >> 5)) &= ~(1 << (nr & 31));
+    *((uint32_t *) addr + (nr >> 5)) &= ~(1 << (nr & 31));
 }
 
 static inline int hci_test_bit(int nr, void *addr)
 {
-	return *((uint32_t *) addr + (nr >> 5)) & (1 << (nr & 31));
+    return *((uint32_t *) addr + (nr >> 5)) & (1 << (nr & 31));
 }
 
 /* HCI filter tools */
 static inline void hci_filter_clear(struct hci_filter *f)
 {
-	memset(f, 0, sizeof(*f));
+    memset(f, 0, sizeof(*f));
 }
 static inline void hci_filter_set_ptype(int t, struct hci_filter *f)
 {
-	hci_set_bit((t == HCI_VENDOR_PKT) ? 0 : (t & HCI_FLT_TYPE_BITS), &f->type_mask);
+    hci_set_bit((t == HCI_VENDOR_PKT) ? 0 : (t & HCI_FLT_TYPE_BITS), &f->type_mask);
 }
 static inline void hci_filter_clear_ptype(int t, struct hci_filter *f)
 {
-	hci_clear_bit((t == HCI_VENDOR_PKT) ? 0 : (t & HCI_FLT_TYPE_BITS), &f->type_mask);
+    hci_clear_bit((t == HCI_VENDOR_PKT) ? 0 : (t & HCI_FLT_TYPE_BITS), &f->type_mask);
 }
 static inline int hci_filter_test_ptype(int t, struct hci_filter *f)
 {
-	return hci_test_bit((t == HCI_VENDOR_PKT) ? 0 : (t & HCI_FLT_TYPE_BITS), &f->type_mask);
+    return hci_test_bit((t == HCI_VENDOR_PKT) ? 0 : (t & HCI_FLT_TYPE_BITS), &f->type_mask);
 }
 static inline void hci_filter_all_ptypes(struct hci_filter *f)
 {
-	memset((void *) &f->type_mask, 0xff, sizeof(f->type_mask));
+    memset((void *) &f->type_mask, 0xff, sizeof(f->type_mask));
 }
 static inline void hci_filter_set_event(int e, struct hci_filter *f)
 {
-	hci_set_bit((e & HCI_FLT_EVENT_BITS), &f->event_mask);
+    hci_set_bit((e & HCI_FLT_EVENT_BITS), &f->event_mask);
 }
 static inline void hci_filter_clear_event(int e, struct hci_filter *f)
 {
-	hci_clear_bit((e & HCI_FLT_EVENT_BITS), &f->event_mask);
+    hci_clear_bit((e & HCI_FLT_EVENT_BITS), &f->event_mask);
 }
 static inline int hci_filter_test_event(int e, struct hci_filter *f)
 {
-	return hci_test_bit((e & HCI_FLT_EVENT_BITS), &f->event_mask);
+    return hci_test_bit((e & HCI_FLT_EVENT_BITS), &f->event_mask);
 }
 static inline void hci_filter_all_events(struct hci_filter *f)
 {
-	memset((void *) f->event_mask, 0xff, sizeof(f->event_mask));
+    memset((void *) f->event_mask, 0xff, sizeof(f->event_mask));
 }
 static inline void hci_filter_set_opcode(int opcode, struct hci_filter *f)
 {
-	f->opcode = opcode;
+    f->opcode = opcode;
 }
 static inline void hci_filter_clear_opcode(struct hci_filter *f)
 {
-	f->opcode = 0;
+    f->opcode = 0;
 }
 static inline int hci_filter_test_opcode(int opcode, struct hci_filter *f)
 {
-	return (f->opcode == opcode);
+    return (f->opcode == opcode);
 }
 
 #ifdef __cplusplus
