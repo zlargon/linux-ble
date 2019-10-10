@@ -5,6 +5,9 @@
 #include "ble.h"
 #include "nameof.h"
 
+#define SCAN_TIME       5000    // 5000 ms
+#define SCAN_LIST_LEN   20
+
 void wait(unsigned int sec) {
     printf("\nwait %u sec...", sec);
     sleep(3);
@@ -19,10 +22,10 @@ int main() {
 
     // 2. hci scan BLE devices
     puts("\nhci_scan_ble");
-    BLEDevice ble_list[20] = {};
-    int ble_list_len = hci_scan_ble(&hci, ble_list, 20, 5000);
+    BLEDevice ble_list[SCAN_LIST_LEN] = {};
+    int ble_list_len = hci_scan_ble(&hci, ble_list, SCAN_LIST_LEN, SCAN_TIME);
     if (ble_list_len == -1) {
-        return -1;
+        return 0;
     }
 
     // filter Crimson_ device

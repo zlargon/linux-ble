@@ -13,7 +13,7 @@ int main() {
     int dd = hci_open_dev(dev_id);      // device description
     if (dev_id < 0 || dd < 0) {
         perror("opening socket");
-        return -1;
+        return 0;
     }
 
     printf("Device Id          = %d\n", dev_id);
@@ -39,7 +39,7 @@ int main() {
     );
     if (num_rsp < 0) {
         perror("hci_inquiry");
-        return -1;
+        return 0;
     }
 
 
