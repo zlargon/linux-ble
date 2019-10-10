@@ -22,9 +22,13 @@ typedef struct {
 } HCIDevice;
 
 typedef struct {
-    char addr[18];
     char name[30];
     int8_t rssi;
+
+    // address
+    bdaddr_t addr;
+    char addr_s[18];
+    uint8_t addr_type;
 
     HCIDevice * hci;
     uint16_t handle;

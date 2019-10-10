@@ -3,7 +3,7 @@
 #include <string.h>
 #include <unistd.h>     // sleep
 #include "ble.h"
-#include "type_name.h"
+#include "nameof.h"
 
 void wait(unsigned int sec) {
     printf("\nwait %u sec...", sec);
@@ -33,7 +33,7 @@ int main() {
         const char * prefix = "Crimson_";
         int ret = strncmp(tmp->name, prefix, strlen(prefix));
         if (ret == 0) {
-            printf("%s - %s\n", tmp->addr, tmp->name);
+            printf("%s - %s\n", tmp->addr_s, tmp->name);
             ble = tmp;
         }
     }
@@ -44,7 +44,7 @@ int main() {
 
     // 3. connect
     wait(3);
-    printf("ble_connect => %s (%s)\n", ble->addr, ble->name);
+    printf("ble_connect => %s (%s)\n", ble->addr_s, ble->name);
     ble_connect(ble);
 
     // 4. show connected list
@@ -56,15 +56,15 @@ int main() {
         char addr[18] = {};
         ba2str(&(info->bdaddr), addr);
         printf("%s\n", addr);
-        printf("    baseband  = %s\n",   baseband_name(info->type));
-        printf("    link_mode = %s\n",   link_mode_name(info->link_mode));
+        printf("    baseband  = %s\n",   nameof_baseband(info->type));
+        printf("    link_mode = %s\n",   nameof_link_mode(info->link_mode));
         printf("    handle    = %d\n",   info->handle);
-        printf("    state     = %s\n\n", conn_state_name(info->state));
+        printf("    state     = %s\n\n", nameof_conn_state(info->state));
     }
 
     // 5. disconnect
     wait(3);
-    printf("ble_disconnect = %s (%s)\n", ble->addr, ble->name);
+    printf("ble_disconnect = %s (%s)\n", ble->addr_s, ble->name);
     ble_disconnect(ble);
 
     // 6. close hci

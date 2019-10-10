@@ -1,5 +1,5 @@
 #include "ble.h"
-#include "adv.h"
+#include "nameof.h"
 
 #include <stdio.h>
 #include <stdbool.h>
@@ -13,6 +13,7 @@
 // Internal Functions
 static long long get_current_time();
 static int ble_find_index_by_address(BLEDevice * list, size_t list_len, const char * address);
+static int eir_parse_name(uint8_t *eir, size_t eir_len, char *output_name, size_t output_name_len);
 
 // 1. hci_init
 int hci_init(HCIDevice * hci) {
@@ -187,73 +188,111 @@ int hci_scan_ble(HCIDevice * hci, BLEDevice * ble_list, int ble_list_len, int sc
          *                                     | META_TYPE | META_DATA    |
          * | 1 byte   | 1 byte     | 1 byte    | 1 byte    | 0 ~ 32 bytes |
          */
+        struct _pkt {
+            // HCI
+            uint8_t hci_type;   // type
+                                // data
+            // event
+            uint8_t evt_type;   // type
+            uint8_t evt_len;    // len
+                                // data
+            // meta
+            uint8_t meta_type;  // type
+                                // data
 
-        uint8_t *ptr = buf;
+            /*
+             * Advertisement: (0 ~ 32 bytes)
+             * https://stackoverflow.com/questions/26275679/
+             *
+             * | adv_info_num | adv_info_1 | adv_info_2 | adv_info_3 | .... |
+             * | 1 byte       | 0 ~ 31 bytes                                |
+             */
 
-        // 1. HCI Header (1 byte)
-        const uint8_t hci_type = ptr[0];    // => EVENT Type
-        if (hci_type != HCI_EVENT_PKT) {
-            printf("The HCI type (0x%0x2) is not HCI_EVENT_PKT (0x%02x)\n", hci_type, HCI_EVENT_PKT);
+            // adverisement report number (usually be 1)
+            uint8_t adv_info_num;
+
+            // only handle first adv info
+            /*
+             *  Advertisement Info
+             *
+             *  | Type   | Address Type | Address | Data len | Data                                 | rssi   |
+             *  |                                            | type1 | data1 | type2 | data2 | .... |        |
+             *  | 1 byte | 1 byte       | 6 bytes | 1 byte   | n bytes                              | 1 byte |
+             */
+            struct {
+                uint8_t  type;       // type
+                uint8_t  addr_type;  // address type
+                bdaddr_t addr;       // address (6 bytes)
+                uint8_t  data_len;   // data length
+                uint8_t  data[0];    // data start pointer
+            } adv_info_1;
+
+        } * pkt = (struct _pkt *) buf;
+
+        if (pkt->hci_type != HCI_EVENT_PKT) {
+            printf("The HCI type (0x%0x2) is not HCI_EVENT_PKT (0x%02x)\n", pkt->hci_type, HCI_EVENT_PKT);
             continue;
         }
-        ptr += HCI_TYPE_LEN;    // 1 byte
 
-        // 2. EVENT Header (2 bytes)
-        const uint8_t event_type = ptr[0];  // => META Type
-        const uint8_t event_len  = ptr[1];  // TODO: check event length
-        if (event_type != EVT_LE_META_EVENT) {
-            printf("The EVENT type (0x%0x2) is not EVT_LE_META_EVENT (0x%02x)\n", event_type, EVT_LE_META_EVENT);
+        if (pkt->evt_type != EVT_LE_META_EVENT) {
+            printf("The EVENT type (0x%0x2) is not EVT_LE_META_EVENT (0x%02x)\n", pkt->evt_type, EVT_LE_META_EVENT);
             continue;
         }
-        ptr += HCI_EVENT_HDR_SIZE;  // 2 bytes
 
-        // 3. META Header (1 byte)
-        const uint8_t meta_type = ptr[0];   // => ADV Type
-        if (meta_type != EVT_LE_ADVERTISING_REPORT) {
-            printf("META type (0x%02x) is not EVT_LE_ADVERTISING_REPORT (0x%02x)\n", meta_type, EVT_LE_ADVERTISING_REPORT);
+        if (pkt->meta_type != EVT_LE_ADVERTISING_REPORT) {
+            printf("The META type (0x%02x) is not EVT_LE_ADVERTISING_REPORT (0x%02x)\n", pkt->meta_type, EVT_LE_ADVERTISING_REPORT);
             continue;
         }
-        ptr += EVT_LE_META_EVENT_SIZE;  // 1 byte
 
-        // 4. ADV Report Numbers (1 byte)
-        const uint8_t report_nums = ptr[0];
-        if (report_nums > 1) {
+        if (pkt->adv_info_num > 1) {
             // usually get 1
-            printf("[WARN] report_nums = %d. Mutiple Advertising Reports is not handled.\n", report_nums);
+            printf("[WARN] adv_info_num = %d. Mutiple Advertising Reports is not handled.\n", pkt->adv_info_num);
         }
-        ptr++;
 
-        // 5. Only Parse Frist Advertising Report
-        Adv adv = {};
-        adv_parse_data(ptr, &adv);
-
-        // 6-1. filter no name
-        if (strlen(adv.name) == 0) {
+        // 1. name (filter empty name)
+        char name[30] = {};
+        eir_parse_name(pkt->adv_info_1.data, pkt->adv_info_1.data_len, name, 29);
+        if (strlen(name) == 0) {
             continue;
         }
+
+        // 2. rssi
+        int8_t rssi = *(pkt->adv_info_1.data + pkt->adv_info_1.data_len);
+
+        // 3-1. addr_s
+        char addr_s[18] = {};
+        ba2str(&(pkt->adv_info_1.addr), addr_s);
 
         // debug log
-        printf("| %s | %s | %s | %d | %s\n",
-            adv_get_adv_type_name(adv.adv_type),
-            adv_get_address_type_name(adv.addr_type),
-            adv.addr,
-            adv.rssi,
-            adv.name
+        printf("| %8s | %s | %s | %d | %s\n",
+            nameof_adv_type(pkt->adv_info_1.type),
+            nameof_bdaddr_type(pkt->adv_info_1.addr_type),
+            addr_s,
+            rssi,
+            name
         );
 
-        // 6-2. filter duplicated address
-        ret = ble_find_index_by_address(ble_list, counter, adv.addr);
-        if (ret >= 0 || counter >= ble_list_len) {
+        // 3-2. filter duplicated address
+        ret = ble_find_index_by_address(ble_list, counter, addr_s);
+        if (ret >= 0) {
             // already exist in ble_list
             continue;
         }
 
-        // 7. copy values to ble_list
+        // 4. check ble_list_len
+        if (counter >= ble_list_len) {
+            puts("[warn] ble_list is full");
+            continue;
+        }
+
+        // 5. copy values to ble_list
         BLEDevice * ble = ble_list + counter;
-        memcpy(ble->name, adv.name, sizeof(adv.name));  // name
-        memcpy(ble->addr, adv.addr, sizeof(adv.addr));  // address
-        ble->rssi = adv.rssi;                           // rssi
-        ble->hci  = hci;                                // hci
+        memcpy(ble->name, name, sizeof(name));                           // name
+        ble->rssi = rssi;                                                // rssi
+        ble->addr_type = pkt->adv_info_1.addr_type;                      // addr_type
+        memcpy(&(ble->addr), &(pkt->adv_info_1.addr), sizeof(bdaddr_t)); // addr
+        memcpy(ble->addr_s, addr_s, sizeof(addr_s));                     // addr_s
+        ble->hci  = hci;                                                 // hci
 
         // 8. increase counter
         counter++;
@@ -268,7 +307,7 @@ int ble_connect(BLEDevice * ble) {
     // 1. get bdaddr
     bdaddr_t bdaddr = {};
     memset(&bdaddr, 0, sizeof(bdaddr_t));
-    str2ba(ble->addr, &bdaddr);
+    str2ba(ble->addr_s, &bdaddr);
 
     // 2. create connection
     uint16_t handle;
@@ -336,10 +375,44 @@ static int ble_find_index_by_address(BLEDevice * list, size_t list_len, const ch
     for (int i = 0; i < list_len; i++) {
         BLEDevice * ble = list + i;
 
-        int ret = memcmp(ble->addr, address, sizeof(ble->addr));
+        int ret = memcmp(ble->addr_s, address, sizeof(ble->addr));
         if (ret == 0) {
             return i;
         }
     }
     return -1;  // not found
+}
+
+// eir_parse_name
+static int eir_parse_name(uint8_t *eir, size_t eir_len, char *output_name, size_t output_name_len) {
+    size_t index = 0;
+    while (index < eir_len) {
+        uint8_t * ptr = eir + index;
+
+        // check field len
+        uint8_t field_len = ptr[0];
+        if (field_len == 0 || index + field_len > eir_len) {
+            return -1;
+        }
+
+        // check EIR type (bluez/src/eir.h)
+        // EIR_NAME_SHORT    0x08
+        // EIR_NAME_COMPLETE 0x09
+        if (ptr[1] == 0x08 || ptr[1] == 0x09) {
+            size_t name_len = field_len - 1;
+            if (name_len > output_name_len) {
+                // output_name_len is too short
+                printf("The length of device name is %ld, but the output_name_len (%ld) is too short.\n", name_len, output_name_len);
+                return -1;
+            }
+
+            // copy value to output+name
+            memcpy(output_name, &ptr[2], name_len);
+            return 0;
+        }
+
+        // update index
+        index += field_len + 1;
+    }
+    return -1;
 }

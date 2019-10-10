@@ -1,7 +1,6 @@
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
+#include "nameof.h"
 
-const char * baseband_name(uint8_t baseband) {
+const char * nameof_baseband(uint8_t baseband) {
     // hci.h
     switch (baseband) {
         case SCO_LINK:  return "SCO";
@@ -12,7 +11,7 @@ const char * baseband_name(uint8_t baseband) {
     }
 }
 
-const char * link_mode_name(uint32_t link_mode) {
+const char * nameof_link_mode(uint32_t link_mode) {
     // hci.h
     switch (link_mode) {
         case 0:               return "NONE";
@@ -27,7 +26,7 @@ const char * link_mode_name(uint32_t link_mode) {
     }
 }
 
-const char * conn_state_name(uint16_t state) {
+const char * nameof_conn_state(uint16_t state) {
     // bluetooth.h
     switch (state) {
         case BT_CONNECTED:  return "CONNECTED";
@@ -40,5 +39,29 @@ const char * conn_state_name(uint16_t state) {
         case BT_DISCONN:    return "DISCONN";
         case BT_CLOSED:     return "CLOSED";
         default:            return NULL;
+    }
+}
+
+const char * nameof_adv_type(uint8_t adv_type) {
+    // https://www.bluetooth.com/blog/bluetooth-low-energy-it-starts-with-advertising/
+    // https://www.novelbits.io/bluetooth-low-energy-sniffer-tutorial-advertisements/
+    switch (adv_type) {
+        case 0x00:  return "ADV_IND";
+        case 0x01:  return "ADV_DIRECT_IND";
+        case 0x02:  return "ADV_NONCONN_IND";
+        case 0x03:  return "SCAN_REQ";
+        case 0x04:  return "SCAN_RSP";
+        case 0x05:  return "CONNECT_REQ";
+        case 0x06:  return "ADV_SCAN_IND";
+        default:    return NULL;
+    }
+}
+
+const char * nameof_bdaddr_type(uint8_t bdaddr_type) {
+    // hci.h
+    switch (bdaddr_type) {
+        case LE_PUBLIC_ADDRESS: return "LE_PUBLIC_ADDRESS";
+        case LE_RANDOM_ADDRESS: return "LE_RANDOM_ADDRESS";
+        default:                return NULL;
     }
 }
