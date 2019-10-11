@@ -1,5 +1,5 @@
-#include <bluetooth.h>
-#include <hci.h>
+#include "bluez/bluetooth.h"
+#include "bluez/hci.h"
 
 const char * nameof_baseband(uint8_t baseband);
 const char * nameof_link_mode(uint32_t link_mode);

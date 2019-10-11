@@ -14,7 +14,7 @@ echo -e "Example Name: ${EXAMPLE_NAME}\n"
 rm -rf *.exe
 gcc -o ${EXAMPLE_NAME}.exe example/${EXAMPLE_NAME}.c    \
     -Isrc src/ble.c src/nameof.c                        \
-    -Ibluez bluez/bluetooth.c bluez/hci.c
+          src/bluez/bluetooth.c src/bluez/hci.c
 
 # 3. run, clean
 sudo ./${EXAMPLE_NAME}.exe
