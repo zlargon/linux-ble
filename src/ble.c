@@ -12,7 +12,7 @@
 
 // Internal Functions
 static long long get_current_time();
-static int ble_find_index_by_address(BLEDevice * list, size_t list_len, const char * address);
+static int ble_find_index_by_address(BLEDevice * list, size_t list_len, bdaddr_t * addr);
 static int eir_parse_name(uint8_t *eir, size_t eir_len, char *output_name, size_t output_name_len);
 
 // 1. hci_init
@@ -297,7 +297,7 @@ int hci_scan_ble(HCIDevice * hci, BLEDevice * ble_list, int ble_list_len, int sc
         );
 
         // 3-2. filter duplicated address
-        ret = ble_find_index_by_address(ble_list, counter, addr_s);
+        ret = ble_find_index_by_address(ble_list, counter, &pkt->adv_info_1.addr);
         if (ret >= 0) {
             // already exist in ble_list
             continue;
@@ -396,12 +396,10 @@ static long long get_current_time() {
 }
 
 // 2. ble_find_index_by_address
-static int ble_find_index_by_address(BLEDevice * list, size_t list_len, const char * address) {
+static int ble_find_index_by_address(BLEDevice * list, size_t list_len, bdaddr_t * addr) {
     for (int i = 0; i < list_len; i++) {
         BLEDevice * ble = list + i;
-
-        int ret = memcmp(ble->addr_s, address, sizeof(ble->addr));
-        if (ret == 0) {
+        if (bacmp(&ble->addr, addr) == 0) {
             return i;
         }
     }
