@@ -1,17 +1,23 @@
-#include <stdbool.h>
+#include <stdbool.h>            // bool
+#include "bluez/bluetooth.h"    // bdaddr_t
+#include "bluez/hci.h"          // hci_*
 
-// bluez
-#include <bluetooth.h>
-#include <hci.h>
+// BLE Device
+typedef struct BLEDevice {
+    char    name[30];
+    char    address[18];
+    int8_t  rssi;
 
-typedef struct {
-    char name[30];
-    int8_t rssi;
+    // when
+    struct {
+        long long discovered;
+        long long connected;
+        long long disconnected;
+    } when;
 
-    // address
-    bdaddr_t    addr;
-    char        addr_s[18];
-    uint8_t     addr_type;
+    // address info
+    uint8_t   addressType;
+    bdaddr_t  bdaddr;
 
     // connect info
     struct hci_conn_info conn;
@@ -23,23 +29,29 @@ typedef struct {
         struct hci_dev_info info;
     } hci;
 
+    // callbacks
+    int (*onDisconnected) (struct BLEDevice * ble, int reason);
+    int (*onDataReceived) (struct BLEDevice * ble, uint8_t * data, uint8_t dataLen);
 } BLEDevice;
 
-// Scan/Discover API
-int ble_scan_enable(bool enable);
-int ble_scan_filter_set(BLEDevice * ble, bool (*scan_filter) (BLEDevice * ble, bool is_repeated));
-int ble_scan_list_get(BLEDevice * ble_list, int ble_list_len);
-int ble_on_discover_callback_set(BLEDevice * ble, int (*on_discover) (BLEDevice * ble));
+// BLE Device List
+#define BLE_DEVICE_LIST_MAX_NUM 30
+typedef struct {
+    int num;
+    BLEDevice ble[BLE_DEVICE_LIST_MAX_NUM];
+} BLEDeviceList;
 
-// Connect/Disconnect API
-int ble_connect(BLEDevice * ble);       // blocking
-int ble_disconnect(BLEDevice * ble);    // blocking
-int ble_connect_list_get(BLEDevice * ble_list, int ble_list_len);
-int ble_on_disconnect_callback_set(BLEDevice * ble, int (*on_disconnected) (BLEDevice * ble));
+// init
+int ble_init();
 
-// Data Send/Receive API
-int ble_send(BLEDevice * ble, uint8_t * data, uint8_t data_len);    // blocking
-int ble_on_receive_callback_set(BLEDevice * ble, int (*on_receive) (BLEDevice * ble, uint8_t * data, uint8_t data_len));
+// Scanner
+int ble_scanner_enable(bool option);
+int ble_scanner_getScanList(BLEDeviceList * list);
 
-// Loop Start/Stop API
-int ble_loop(bool start);
+typedef int (*ble_discoveredCallback) (BLEDevice * ble, bool isDuplicated);
+int ble_scanner_setDiscoverCallback(ble_discoveredCallback cb);
+
+// BLE Device (blocking)
+int ble_device_connect(BLEDevice * ble);
+int ble_device_disconnect(BLEDevice * ble);
+int ble_device_sendData(BLEDevice * ble, uint8_t * data, uint8_t dataLen);
