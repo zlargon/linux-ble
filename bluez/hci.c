@@ -1173,8 +1173,7 @@ int hci_send_req(int dd, struct hci_request *r, int to) {
         FD_SET(dd, &rfds);
 
         struct timeval tv = {
-            .tv_sec  = 0,
-            .tv_usec = 5000 * 1000,
+            .tv_usec = 500 * 1000,  // 0.5 sec
         };
 
         // select read fds
