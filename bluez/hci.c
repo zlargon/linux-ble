@@ -1159,6 +1159,14 @@ int hci_send_req(int dd, struct hci_request *r, int to) {
     if (ret < 0) goto end;
 
     for (;;) {
+        // check connection timeout
+        if (get_current_time() - start_time > to) {
+            // TODO: cancel the request
+            errno = ETIMEDOUT;
+            ret = -1;
+            goto end;
+        }
+
         // set read file descriptions
         fd_set rfds;
         FD_ZERO(&rfds);
@@ -1179,23 +1187,8 @@ int hci_send_req(int dd, struct hci_request *r, int to) {
         );
 
         // check select result
-        if (ret == -1) {
-            // select error
-            goto end;
-        }
-
-        // select timeout
-        if (ret == 0) {
-            // connection timeout
-            if (get_current_time() - start_time > to) {
-                // TODO: cancel the request
-                errno = ETIMEDOUT;
-                ret = -1;
-                goto end;
-            }
-
-            continue;   // select again
-        }
+        if (ret ==  0)  continue;   // select timeout => select again
+        if (ret == -1)  goto end;   // select error
 
         // ret > 0 => read HCI socket
         uint8_t buf[HCI_MAX_EVENT_SIZE] = {};

@@ -29,7 +29,7 @@ int main() {
     puts("\nBLE Scan Result:");
     for (int i = 0; i < ble_list_len; i++) {
         BLEDevice * ble = ble_list + i;
-        printf("%s - %s\n", ble->addr_s, ble->name);
+        printf("| %s | %d | %s\n", ble->addr_s, ble->rssi, ble->name);
     }
 
     // 4. close hci

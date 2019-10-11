@@ -51,7 +51,7 @@ int hci_init(HCIDevice * hci) {
         hci->name
     );
 
-    // 2. save original filter
+    // 5. save original filter
     hci_filter_clear(&hci->of);
     socklen_t of_len = sizeof(hci->of);
     ret = getsockopt(hci->dd, SOL_HCI, HCI_FILTER, &hci->of, &of_len);
@@ -60,23 +60,11 @@ int hci_init(HCIDevice * hci) {
         return -1;
     }
 
-    // 3. set new filter
-    struct hci_filter nf;
-    hci_filter_clear(&nf);
-    hci_filter_set_ptype(HCI_EVENT_PKT, &nf);       // HCI_EVENT_PKT
-    hci_filter_set_event(EVT_LE_META_EVENT, &nf);   // EVT_LE_META_EVENT
-    ret = setsockopt(hci->dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf));
-    if (ret < 0) {
-        perror("setsockopt failed");
-        return -1;
-    }
-
     return 0;
 }
 
 // 2. hci_close
 int hci_close(HCIDevice * hci) {
-    setsockopt(hci->dd, SOL_HCI, HCI_FILTER, &(hci->of), sizeof(hci->of));
     hci_close_dev(hci->dd);
     memset(hci, 0, sizeof(HCIDevice));
     return 0;
@@ -109,6 +97,17 @@ int hci_update_conn_list(HCIDevice * hci) {
 int hci_scan_ble(HCIDevice * hci, BLEDevice * ble_list, int ble_list_len, int scan_time) {
     const long long start_time = get_current_time();
 
+    // 1. set new filter
+    struct hci_filter nf = {};
+    hci_filter_clear(&nf);
+    hci_filter_set_ptype(HCI_EVENT_PKT, &nf);       // HCI_EVENT_PKT
+    hci_filter_set_event(EVT_LE_META_EVENT, &nf);   // EVT_LE_META_EVENT
+    int ret = setsockopt(hci->dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf));
+    if (ret < 0) {
+        perror("setsockopt failed");
+        return -1;
+    }
+
     // scan parameters
     const uint8_t scan_type = 0x01;             // passive: 0x00, active: 0x01
     const uint16_t interval = htobs(0x0010);    // ?
@@ -117,8 +116,8 @@ int hci_scan_ble(HCIDevice * hci, BLEDevice * ble_list, int ble_list_len, int sc
     const uint8_t filter_policy = 0x00;         // no filter
     const int timeout = 10000;
 
-    // 1. set scan params
-    int ret = hci_le_set_scan_parameters(hci->dd, scan_type, interval, window, own_type, filter_policy, timeout);
+    // 2. set scan params
+    ret = hci_le_set_scan_parameters(hci->dd, scan_type, interval, window, own_type, filter_policy, timeout);
     if (ret != 0) {
         if (errno != EIO) {
             perror("hci_le_set_scan_parameters");
@@ -148,7 +147,7 @@ int hci_scan_ble(HCIDevice * hci, BLEDevice * ble_list, int ble_list_len, int sc
         }
     }
 
-    // 2. start scanning
+    // 3. start scanning
     ret = hci_le_set_scan_enable(
         hci->dd,
         0x01,           // enable
@@ -160,9 +159,15 @@ int hci_scan_ble(HCIDevice * hci, BLEDevice * ble_list, int ble_list_len, int sc
         return -1;
     }
 
-    // 3. use 'select' to recieve data from fd
+    // 4. use 'select' to recieve data from fd
     int counter = 0;
     for (;;) {
+        // check scan time
+        if (get_current_time() - start_time > scan_time) {
+            // BLE scan is done
+            break;
+        }
+
         // set read file descriptions
         fd_set rfds;
         FD_ZERO(&rfds);
@@ -182,27 +187,29 @@ int hci_scan_ble(HCIDevice * hci, BLEDevice * ble_list, int ble_list_len, int sc
             &tv             // timeout (1 sec)
         );
 
+        // check select result
+        if (ret ==  0) continue;    // select timeout => select again
         if (ret == -1) {
             perror("select error");
-            return -1;
-        }
-
-        // check scan timeout
-        if (get_current_time() - start_time > scan_time) {
-            // BLE scan is done
-            return counter;
-        }
-        if (ret == 0) {
-            printf("select timeout");
-            continue;
+            counter = -1;
+            break;
         }
 
         // ret > 0
         uint8_t buf[HCI_MAX_EVENT_SIZE] = {};
-        const int buff_size = read(hci->dd, buf, sizeof(buf));  // TODO: check buff_size
+        const int buff_size = read(hci->dd, buf, sizeof(buf));
+        if (buff_size < 0) {
+            if (errno == EAGAIN || errno == EINTR) {
+                continue;
+            }
+
+            counter = -1;
+            break;
+        }
+
         if (buff_size == 0) {
-            printf("read no data");
-            continue;
+            // end of file
+            break;
         }
 
         /*
@@ -244,12 +251,12 @@ int hci_scan_ble(HCIDevice * hci, BLEDevice * ble_list, int ble_list_len, int sc
              *  | 1 byte | 1 byte       | 6 bytes | 1 byte   | n bytes                              | 1 byte |
              */
             struct {
-                uint8_t  type;       // type
+                uint8_t  type;       // advertising type
                 uint8_t  addr_type;  // address type
                 bdaddr_t addr;       // address (6 bytes)
                 uint8_t  data_len;   // data length
                 uint8_t  data[0];    // data start pointer
-            } adv_info_1;
+            } adv_info[1];
 
         } * pkt = (struct _pkt *) buf;
 
@@ -275,52 +282,67 @@ int hci_scan_ble(HCIDevice * hci, BLEDevice * ble_list, int ble_list_len, int sc
 
         // 1. name (filter empty name)
         char name[30] = {};
-        eir_parse_name(pkt->adv_info_1.data, pkt->adv_info_1.data_len, name, 29);
+        eir_parse_name(pkt->adv_info[0].data, pkt->adv_info[0].data_len, name, sizeof(name) - 1);
         if (strlen(name) == 0) {
             continue;
         }
 
         // 2. rssi
-        int8_t rssi = *(pkt->adv_info_1.data + pkt->adv_info_1.data_len);
+        int8_t rssi = *(pkt->adv_info[0].data + pkt->adv_info[0].data_len);
 
-        // 3-1. addr_s
+        // 3. addr_s
         char addr_s[18] = {};
-        ba2str(&(pkt->adv_info_1.addr), addr_s);
+        ba2str(&(pkt->adv_info[0].addr), addr_s);
 
         // debug log
         printf("| %8s | %s | %s | %d | %s\n",
-            nameof_adv_type(pkt->adv_info_1.type),
-            nameof_bdaddr_type(pkt->adv_info_1.addr_type),
+            nameof_adv_type(pkt->adv_info[0].type),
+            nameof_bdaddr_type(pkt->adv_info[0].addr_type),
             addr_s,
             rssi,
             name
         );
 
-        // 3-2. filter duplicated address
-        ret = ble_find_index_by_address(ble_list, counter, &pkt->adv_info_1.addr);
-        if (ret >= 0) {
-            // already exist in ble_list
+        // 4. decide to update original device, or add new one to ble_list
+        BLEDevice * ble;
+        int idx = ble_find_index_by_address(ble_list, counter, &pkt->adv_info[0].addr);
+        if (idx >= 0) {
+            ble = ble_list + idx;           // already exist in ble_list => update the old one
+        } else if (counter < ble_list_len) {
+            ble = ble_list + counter;       // add new device to ble_list
+            counter++;                      // increase counter
+        } else {
+            printf("[warn] ble_list (%d) is full to add new devices\n", ble_list_len);
             continue;
         }
 
-        // 4. check ble_list_len
-        if (counter >= ble_list_len) {
-            puts("[warn] ble_list is full");
-            continue;
-        }
-
-        // 5. copy values to ble_list
-        BLEDevice * ble = ble_list + counter;
-        memcpy(ble->name, name, sizeof(name));                           // name
-        ble->rssi = rssi;                                                // rssi
-        ble->addr_type = pkt->adv_info_1.addr_type;                      // addr_type
-        memcpy(&(ble->addr), &(pkt->adv_info_1.addr), sizeof(bdaddr_t)); // addr
-        memcpy(ble->addr_s, addr_s, sizeof(addr_s));                     // addr_s
-        ble->hci  = hci;                                                 // hci
-
-        // 8. increase counter
-        counter++;
+        // 5. copy values to ble instance
+        memcpy(ble->name, name, sizeof(name));                        // name
+        ble->rssi = rssi;                                             // rssi
+        ble->addr_type = pkt->adv_info[0].addr_type;                  // addr_type
+        memcpy(&ble->addr, &pkt->adv_info[0].addr, sizeof(bdaddr_t)); // addr
+        memcpy(ble->addr_s, addr_s, sizeof(addr_s));                  // addr_s
+        ble->hci = hci;                                               // hci
     }
+
+    // 5. stop scanning
+    ret = hci_le_set_scan_enable(
+        hci->dd,
+        0x00,           // disable
+        filter_policy,  // no filter
+        timeout
+    );
+    if (ret != 0) {
+        perror("hci_le_set_scan_enable");
+    }
+
+    // 6. reset filter
+    ret = setsockopt(hci->dd, SOL_HCI, HCI_FILTER, &(hci->of), sizeof(hci->of));
+    if (ret != 0) {
+        perror("setsockopt faild");
+    }
+
+    return counter;
 }
 
 // 5. ble_connect
