@@ -1,18 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>     // sleep
 #include "ble.h"
 #include "nameof.h"
 
 #define SCAN_TIME       5000    // 5000 ms
 #define SCAN_LIST_LEN   20
-
-void wait(unsigned int sec) {
-    printf("\nwait %u sec...", sec);
-    sleep(3);
-    puts("\n");
-}
 
 int main() {
     // 1. create hci
@@ -46,28 +39,25 @@ int main() {
     }
 
     // 3. connect
-    wait(3);
-    printf("ble_connect => %s (%s)\n", ble->addr_s, ble->name);
+    printf("\nble_connect => %s (%s)\n", ble->addr_s, ble->name);
     ble_connect(ble);
 
     // 4. show connected list
-    wait(3);
-    puts("hci_update_conn_list");
+    puts("\nhci_update_conn_list");
     hci_update_conn_list(&hci);
     for (int i = 0; i < hci.conn.num; i++) {
         struct hci_conn_info * info = hci.conn.list + i;
         char addr[18] = {};
         ba2str(&(info->bdaddr), addr);
         printf("%s\n", addr);
-        printf("    baseband  = %s\n",   nameof_baseband(info->type));
-        printf("    link_mode = %s\n",   nameof_link_mode(info->link_mode));
-        printf("    handle    = %d\n",   info->handle);
-        printf("    state     = %s\n\n", nameof_conn_state(info->state));
+        printf("    baseband  = %s\n", nameof_baseband(info->type));
+        printf("    link_mode = %s\n", nameof_link_mode(info->link_mode));
+        printf("    handle    = %d\n", info->handle);
+        printf("    state     = %s\n", nameof_conn_state(info->state));
     }
 
     // 5. disconnect
-    wait(3);
-    printf("ble_disconnect = %s (%s)\n", ble->addr_s, ble->name);
+    printf("\nble_disconnect = %s (%s)\n", ble->addr_s, ble->name);
     ble_disconnect(ble);
 
     // 6. close hci
