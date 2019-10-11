@@ -350,12 +350,7 @@ int ble_connect(BLEDevice * ble) {
 
     HCIDevice * hci = ble->hci;
 
-    // 1. get bdaddr
-    bdaddr_t bdaddr = {};
-    memset(&bdaddr, 0, sizeof(bdaddr_t));
-    str2ba(ble->addr_s, &bdaddr);
-
-    // 2. create connection
+    // create connection
     uint16_t handle;
     int ret = hci_le_create_conn(
         hci->dd,
@@ -363,7 +358,7 @@ int ble_connect(BLEDevice * ble) {
         htobs(0x0004),      // uint16_t window
         0x00,               // uint8_t initiator_filter (Use peer address)
         LE_PUBLIC_ADDRESS,  // uint8_t peer_bdaddr_type
-        bdaddr,
+        ble->addr,
         LE_PUBLIC_ADDRESS,  // uint8_t own_bdaddr_type
         htobs(0x000F),      // uint16_t min_interval
         htobs(0x000F),      // uint16_t max_interval
