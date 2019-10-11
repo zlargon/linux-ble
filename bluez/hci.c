@@ -36,6 +36,7 @@
 #include <string.h>
 #include <poll.h>
 
+#include <sys/time.h>
 #include <sys/param.h>
 #include <sys/uio.h>
 #include <sys/types.h>
@@ -54,6 +55,16 @@ typedef struct {
     char *str;
     unsigned int val;
 } hci_map;
+
+static long long get_current_time() {
+    struct timeval time = {};
+    int ret = gettimeofday(&time, NULL);
+    if (ret == -1) {
+        perror("gettimeofday failed");
+        return -1;
+    }
+    return (long long) time.tv_sec * 1000 + (long long) time.tv_usec / 1000;
+}
 
 static char *hci_bit2str(hci_map *m, unsigned int val)
 {
@@ -1119,150 +1130,194 @@ int hci_send_cmd(int dd, uint16_t ogf, uint16_t ocf, uint8_t plen, void *param)
     return 0;
 }
 
-int hci_send_req(int dd, struct hci_request *r, int to)
-{
-    unsigned char buf[HCI_MAX_EVENT_SIZE], *ptr;
+int hci_send_req(int dd, struct hci_request *r, int to) {
+    const long long start_time = get_current_time();
+
+    // original filter
+    struct hci_filter of = {};
+    socklen_t olen = sizeof(of);
+    int ret = getsockopt(dd, SOL_HCI, HCI_FILTER, &of, &olen);
+    if (ret < 0) return -1;
+
+    // opcode
     uint16_t opcode = htobs(cmd_opcode_pack(r->ogf, r->ocf));
-    struct hci_filter nf, of;
-    socklen_t olen;
-    hci_event_hdr *hdr;
-    int err, try;
 
-    olen = sizeof(of);
-    if (getsockopt(dd, SOL_HCI, HCI_FILTER, &of, &olen) < 0)
-        return -1;
-
+    // set new filter
+    struct hci_filter nf = {};
     hci_filter_clear(&nf);
-    hci_filter_set_ptype(HCI_EVENT_PKT,  &nf);
-    hci_filter_set_event(EVT_CMD_STATUS, &nf);
-    hci_filter_set_event(EVT_CMD_COMPLETE, &nf);
-    hci_filter_set_event(EVT_LE_META_EVENT, &nf);
+    hci_filter_set_ptype(HCI_EVENT_PKT, &nf);       // HCI_EVENT_PKT
+    hci_filter_set_event(EVT_CMD_STATUS, &nf);      // EVT_CMD_STATUS
+    hci_filter_set_event(EVT_CMD_COMPLETE, &nf);    // EVT_CMD_COMPLETE
+    hci_filter_set_event(EVT_LE_META_EVENT, &nf);   // EVT_LE_META_EVENT
     hci_filter_set_event(r->event, &nf);
-    hci_filter_set_opcode(opcode, &nf);
-    if (setsockopt(dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf)) < 0)
-        return -1;
+    hci_filter_set_opcode(opcode, &nf);             // opcode
+    ret = setsockopt(dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf));
+    if (ret < 0) return -1;
 
-    if (hci_send_cmd(dd, r->ogf, r->ocf, r->clen, r->cparam) < 0)
-        goto failed;
+    // send command
+    ret = hci_send_cmd(dd, r->ogf, r->ocf, r->clen, r->cparam);
+    if (ret < 0) goto end;
 
-    try = 10;
-    while (try--) {
-        evt_cmd_complete *cc;
-        evt_cmd_status *cs;
-        evt_remote_name_req_complete *rn;
-        evt_le_meta_event *me;
-        remote_name_req_cp *cp;
-        int len;
+    for (;;) {
+        // set read file descriptions
+        fd_set rfds;
+        FD_ZERO(&rfds);
+        FD_SET(dd, &rfds);
 
-        if (to) {
-            struct pollfd p;
-            int n;
+        struct timeval tv = {
+            .tv_sec  = 0,
+            .tv_usec = 5000 * 1000,
+        };
 
-            p.fd = dd; p.events = POLLIN;
-            while ((n = poll(&p, 1, to)) < 0) {
-                if (errno == EAGAIN || errno == EINTR)
-                    continue;
-                goto failed;
-            }
+        // select read fds
+        int ret = select(
+            dd + 1,  // MAX fd + 1
+            &rfds,   // read fds
+            NULL,    // write fds
+            NULL,    // except fds
+            &tv      // timeout (0.5 sec)
+        );
 
-            if (!n) {
+        // check select result
+        if (ret == -1) {
+            // select error
+            goto end;
+        }
+
+        // select timeout
+        if (ret == 0) {
+            // connection timeout
+            if (get_current_time() - start_time > to) {
+                // TODO: cancel the request
                 errno = ETIMEDOUT;
-                goto failed;
+                ret = -1;
+                goto end;
             }
 
-            to -= 10;
-            if (to < 0)
-                to = 0;
-
+            continue;   // select again
         }
 
-        while ((len = read(dd, buf, sizeof(buf))) < 0) {
-            if (errno == EAGAIN || errno == EINTR)
-                continue;
-            goto failed;
+        // ret > 0 => read HCI socket
+        uint8_t buf[HCI_MAX_EVENT_SIZE] = {};
+        int len = read(dd, buf, sizeof(buf));
+
+        // check buffer len
+        if (len < 0) {
+            if (errno == EAGAIN || errno == EINTR) {
+                printf("try to read socket again, error = %d (%s)\n", errno, strerror(errno));
+                continue;   // select again
+            } else {
+                // read failed
+                ret = -1;
+                goto end;
+            }
         }
 
-        hdr = (void *) (buf + 1);
-        ptr = buf + (1 + HCI_EVENT_HDR_SIZE);
+        // set default result to success
+        ret = 0;
+
+        // len == 0: end of file
+        if (len == 0) goto end;
+
+        /* len > 0: read data success => parse HCI packet
+         *
+         * | HCI_TYPE | HCI_DATA                            |
+         *            | EVENT_TYPE | EVENT_LEN | EVENT_DATA |
+         * | 1 byte   | 1 byte     | 1 byte    | n bytes    |
+         */
+        hci_event_hdr * hdr = (void *) (buf + 1);
+        unsigned char * ptr = buf + (1 + HCI_EVENT_HDR_SIZE);
         len -= (1 + HCI_EVENT_HDR_SIZE);
 
+        // check event type
         switch (hdr->evt) {
-        case EVT_CMD_STATUS:
-            cs = (void *) ptr;
 
-            if (cs->opcode != opcode)
-                continue;
-
-            if (r->event != EVT_CMD_STATUS) {
-                if (cs->status) {
-                    errno = EIO;
-                    goto failed;
+            // 1. EVT_CMD_STATUS
+            case EVT_CMD_STATUS: {
+                evt_cmd_status * cs = (void *) ptr;
+                if (cs->opcode != opcode) {
+                    continue;   // select again
                 }
-                break;
+
+                if (r->event != EVT_CMD_STATUS) {
+                    if (cs->status) {
+                        ret = -1;
+                        errno = EIO;
+                        goto end;
+                    }
+                    continue;   // select again
+                }
+
+                r->rlen = MIN(len, r->rlen);
+                memcpy(r->rparam, ptr, r->rlen);
+                goto end;
             }
 
-            r->rlen = MIN(len, r->rlen);
-            memcpy(r->rparam, ptr, r->rlen);
-            goto done;
+            // 2. EVT_CMD_COMPLETE
+            case EVT_CMD_COMPLETE: {
+                evt_cmd_complete * cc = (void *) ptr;
+                if (cc->opcode != opcode) {
+                    continue;   // select again
+                }
 
-        case EVT_CMD_COMPLETE:
-            cc = (void *) ptr;
+                ptr += EVT_CMD_COMPLETE_SIZE;
+                len -= EVT_CMD_COMPLETE_SIZE;
 
-            if (cc->opcode != opcode)
-                continue;
+                r->rlen = MIN(len, r->rlen);
+                memcpy(r->rparam, ptr, r->rlen);
+                goto end;
+            }
 
-            ptr += EVT_CMD_COMPLETE_SIZE;
-            len -= EVT_CMD_COMPLETE_SIZE;
+            // 3. EVT_REMOTE_NAME_REQ_COMPLETE
+            case EVT_REMOTE_NAME_REQ_COMPLETE: {
+                if (hdr->evt != r->event) {
+                    continue;   // select again
+                }
 
-            r->rlen = MIN(len, r->rlen);
-            memcpy(r->rparam, ptr, r->rlen);
-            goto done;
+                evt_remote_name_req_complete * rn = (void *) ptr;
+                remote_name_req_cp * cp = r->cparam;
+                if (bacmp(&rn->bdaddr, &cp->bdaddr)) {
+                    continue;   // select again
+                }
 
-        case EVT_REMOTE_NAME_REQ_COMPLETE:
-            if (hdr->evt != r->event)
-                break;
+                r->rlen = MIN(len, r->rlen);
+                memcpy(r->rparam, ptr, r->rlen);
+                goto end;
+            }
 
-            rn = (void *) ptr;
-            cp = r->cparam;
+            // 4. EVT_LE_META_EVENT
+            case EVT_LE_META_EVENT: {
+                evt_le_meta_event * me = (void *) ptr;
+                if (me->subevent != r->event) {
+                    continue;   // select again
+                }
 
-            if (bacmp(&rn->bdaddr, &cp->bdaddr))
-                continue;
+                len -= 1;
+                r->rlen = MIN(len, r->rlen);
+                memcpy(r->rparam, me->data, r->rlen);
+                goto end;
+            }
 
-            r->rlen = MIN(len, r->rlen);
-            memcpy(r->rparam, ptr, r->rlen);
-            goto done;
+            // 5. else
+            default: {
+                if (hdr->evt != r->event) {
+                    continue;   // select again
+                }
 
-        case EVT_LE_META_EVENT:
-            me = (void *) ptr;
-
-            if (me->subevent != r->event)
-                continue;
-
-            len -= 1;
-            r->rlen = MIN(len, r->rlen);
-            memcpy(r->rparam, me->data, r->rlen);
-            goto done;
-
-        default:
-            if (hdr->evt != r->event)
-                break;
-
-            r->rlen = MIN(len, r->rlen);
-            memcpy(r->rparam, ptr, r->rlen);
-            goto done;
+                r->rlen = MIN(len, r->rlen);
+                memcpy(r->rparam, ptr, r->rlen);
+                goto end;
+            }
         }
     }
-    errno = ETIMEDOUT;
 
-failed:
-    err = errno;
+end: {
+    // ignore the errno of setsockopt
+    int err = errno;    // back up errno
     setsockopt(dd, SOL_HCI, HCI_FILTER, &of, sizeof(of));
     errno = err;
-    return -1;
-
-done:
-    setsockopt(dd, SOL_HCI, HCI_FILTER, &of, sizeof(of));
-    return 0;
+}
+    return ret;
 }
 
 int hci_create_connection(int dd, const bdaddr_t *bdaddr, uint16_t ptype,
