@@ -34,7 +34,7 @@ int hci_init(HCIDevice * hci) {
     }
 
     // 3. get HCI name
-    ret = hci_read_local_name(hci->dd, HCI_MAX_NAME_LENGTH, hci->name, 0);
+    ret = hci_read_local_name(hci->dd, HCI_MAX_NAME_LENGTH, hci->name, 1000);
     if (ret != 0) {
         perror("hci_read_local_name failed");
         return -1;
