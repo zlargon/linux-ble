@@ -353,7 +353,6 @@ int ble_connect(BLEDevice * ble) {
         25000
     );
     if (ret < 0) {
-        // FIXME: always occur "Connection timed out", but the connection do establish successfully
         perror("Could not create connection");
         return -1;
     }
@@ -373,7 +372,9 @@ int ble_disconnect(BLEDevice * ble) {
         10000
     );
 
-    if (ret == -1) {
+    if (ret == 0) {
+        ble->handle = 0;
+    } else {
         perror("hci_disconnect failed");
     }
 
