@@ -1,9 +1,9 @@
 #include <stdbool.h>
 
 // bluez
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
-#include <bluetooth/hci_lib.h>
+#include <bluetooth.h>
+#include <hci.h>
+#include <hci_lib.h>
 
 #define HCI_MAX_CONN  20
 

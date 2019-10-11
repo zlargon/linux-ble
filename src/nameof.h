@@ -1,5 +1,5 @@
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
+#include <bluetooth.h>
+#include <hci.h>
 
 const char * nameof_baseband(uint8_t baseband);
 const char * nameof_link_mode(uint32_t link_mode);

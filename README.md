@@ -1,11 +1,5 @@
 # Linux BLE library
 
-## install BLUEZ
-
-```bash
-sudo apt install libbluetooth-dev
-```
-
 ## run example
 
 ```bash
